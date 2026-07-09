@@ -1,4 +1,4 @@
-# Ponto BM 🕐
+# Ponto WISE 🕐
 
 App interno de registro de ponto para a empresa. Feito em Python (Flask) com
 banco SQLite — sem dependência de serviços externos, roda em qualquer máquina
