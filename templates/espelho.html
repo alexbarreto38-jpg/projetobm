@@ -15,7 +15,7 @@
   <div class="kpis">
     <div class="kpi"><span class="kpi-num">{{ totais.trabalhado }}</span><span class="kpi-lbl">Horas trabalhadas</span></div>
     <div class="kpi"><span class="kpi-num">{{ totais.dias }}</span><span class="kpi-lbl">Dias com registro</span></div>
-    <div class="kpi"><span class="kpi-num" style="color:{% if totais.perdido %}#f0a8a8{% else %}var(--zap){% endif %}">{{ fmt_minutos(totais.perdido) if totais.perdido else '0 min' }}</span><span class="kpi-lbl">Tempo descontado</span></div>
+    <div class="kpi"><span class="kpi-num" style="color:#f0716c">{{ fmt_minutos(totais.perdido) if totais.perdido else '0 min' }}</span><span class="kpi-lbl">Tempo descontado</span></div>
     <div class="kpi"><span class="kpi-num" style="color:var(--zap)">{{ fmt_minutos(totais.abonado) if totais.abonado else '0 min' }}</span><span class="kpi-lbl">Abonado pelo gestor</span></div>
   </div>
 </div>
