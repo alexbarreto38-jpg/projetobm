@@ -7,7 +7,7 @@
   <title>{% block titulo %}Ponto BM{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Manrope:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root{
       --ink:#08090C; --ink2:#0C0D13; --panel:#14151C; --panel2:#181922;
@@ -15,7 +15,7 @@
       --gold:#F5C53D; --gold-2:#FFD45E; --gold-deep:#D99A12; --gold-hi:#FFE9A8;
       --ivory:#F6F5F2; --zinc:#A0A0AC; --zinc-dim:#6A6A76;
       --zap:#25D366; --zap-deep:#16A152;
-      --disp:'Sora',system-ui,sans-serif; --body:'Manrope',system-ui,sans-serif; --mono:'Space Mono',ui-monospace,monospace;
+      --disp:'Sora',system-ui,sans-serif; --body:'Manrope',system-ui,sans-serif; --mono:'Sora',system-ui,sans-serif;
     }
     *{box-sizing:border-box;margin:0;padding:0}
     body{
@@ -45,8 +45,8 @@
 
     main{width:100%;max-width:680px;padding:clamp(24px,4vw,40px) 20px 64px}
 
-    .eyebrow{display:inline-flex;align-items:center;gap:12px;font-family:var(--mono);
-      font-size:.72rem;letter-spacing:.24em;text-transform:uppercase;color:var(--zinc);margin-bottom:12px}
+    .eyebrow{display:inline-flex;align-items:center;gap:12px;font-family:var(--mono);font-weight:600;
+      font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--zinc);margin-bottom:12px}
     .eyebrow b{color:var(--gold);font-weight:400}
 
     .cartao{
@@ -60,7 +60,7 @@
       font-size:clamp(1.5rem,4vw,2rem);margin-bottom:.6rem}
     h2{font-family:var(--disp);font-weight:700;font-size:1.15rem;letter-spacing:-.01em;margin-bottom:.9rem}
 
-    label{display:block;font-family:var(--mono);font-size:.72rem;letter-spacing:.14em;
+    label{display:block;font-family:var(--mono);font-weight:600;font-size:.72rem;letter-spacing:.08em;
       text-transform:uppercase;margin-bottom:.45rem;color:var(--zinc)}
     input[type=text],input[type=password],input[type=month]{
       width:100%;padding:.75rem .9rem;font-size:1.02rem;font-family:var(--body);
@@ -86,10 +86,10 @@
 
     table{width:100%;border-collapse:collapse;font-size:.95rem}
     th,td{text-align:left;padding:.65rem .5rem;border-bottom:1px solid var(--line-soft)}
-    th{font-family:var(--mono);color:var(--zinc-dim);font-weight:400;font-size:.7rem;
-      letter-spacing:.16em;text-transform:uppercase}
+    th{font-family:var(--mono);color:var(--zinc-dim);font-weight:600;font-size:.7rem;
+      letter-spacing:.08em;text-transform:uppercase}
     td{color:var(--ivory)}
-    .hora{font-family:var(--mono);color:var(--gold)}
+    .hora{font-family:var(--mono);font-weight:600;color:var(--gold);font-variant-numeric:tabular-nums}
 
     .aviso{padding:.8rem 1.1rem;border-radius:13px;margin-bottom:1.1rem;font-size:.94rem;
       border:1px solid var(--line-soft)}
