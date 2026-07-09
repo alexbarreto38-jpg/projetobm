@@ -36,12 +36,16 @@
       font-size:1.05rem;letter-spacing:.04em;text-transform:uppercase}
     .brand .b{color:var(--gold)}
     .brand svg{width:26px;height:26px;stroke:var(--gold);fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
-    nav{display:flex;align-items:center;gap:24px;font-size:.92rem;font-weight:500}
-    nav a{color:var(--zinc);transition:.2s;position:relative;padding:4px 0}
-    nav a::after{content:"";position:absolute;left:0;bottom:-2px;height:2px;width:0;
-      background:var(--gold);transition:.25s}
-    nav a:hover{color:var(--ivory)}
-    nav a:hover::after{width:100%}
+    nav{display:flex;align-items:center;gap:10px;font-size:.88rem;font-weight:700;flex-wrap:wrap}
+    nav a{font-family:var(--disp);display:inline-flex;align-items:center;gap:8px;
+      padding:.5rem 1.1rem;border-radius:11px;border:1px solid var(--line);color:var(--ivory);
+      transition:.22s;white-space:nowrap}
+    nav a:hover{border-color:var(--gold);background:rgba(245,197,61,.08);transform:translateY(-1px)}
+    nav a.destaque{background:linear-gradient(155deg,var(--gold-hi),var(--gold) 52%,var(--gold-deep));
+      color:#241808;border-color:transparent;
+      box-shadow:0 10px 22px -10px rgba(242,185,39,.55),inset 0 2px 0 rgba(255,255,255,.6)}
+    nav a.destaque:hover{filter:brightness(1.05);background:linear-gradient(155deg,var(--gold-hi),var(--gold) 52%,var(--gold-deep))}
+    nav a svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
 
     main{width:100%;max-width:680px;padding:clamp(24px,4vw,40px) 20px 64px}
 
@@ -133,9 +137,15 @@
       Bater Ponto da&nbsp;<span class="b">WISE</span>
     </a>
     <nav>
-      <a href="{{ url_for('index') }}">Bater ponto</a>
+      <a class="destaque" href="{{ url_for('index') }}">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+        Bater ponto
+      </a>
       {% if session.get('func_id') %}<a href="{{ url_for('meu_espelho') }}">Meu espelho</a>{% endif %}
-      <a href="{{ url_for('admin') }}">Área do gestor</a>
+      <a href="{{ url_for('admin') }}">
+        <svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+        Área do gestor
+      </a>
       {% if session.get('admin') %}<a href="{{ url_for('admin_sair') }}">Sair</a>{% endif %}
     </nav>
   </header>
