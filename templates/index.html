@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block conteudo %}
+<div class="cartao" style="text-align:center">
+  <h1>Registrar ponto</h1>
+  <p class="discreto" style="margin-bottom:1.2rem">
+    Digite seu PIN e confirme. A batida é registrada com a hora atual do servidor.
+  </p>
+  <form method="post" action="{{ url_for('bater') }}">
+    <input type="password" name="pin" inputmode="numeric" autocomplete="off"
+           placeholder="Seu PIN" autofocus required
+           style="max-width:220px; margin:0 auto 1rem; text-align:center; font-size:1.4rem; letter-spacing:0.3em">
+    <br>
+    <button type="submit" style="font-size:1.1rem; padding:0.8rem 2.4rem">Bater ponto</button>
+  </form>
+</div>
+{% endblock %}

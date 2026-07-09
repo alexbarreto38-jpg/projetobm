@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}Ponto BM{% endblock %}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: #f2f4f8; color: #1c2230; min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center;
+    }
+    header {
+      width: 100%; background: #1c2f5e; color: #fff;
+      padding: 0.9rem 1.2rem; display: flex; justify-content: space-between;
+      align-items: center; flex-wrap: wrap; gap: 0.5rem;
+    }
+    header a { color: #c6d4f7; text-decoration: none; margin-left: 1rem; font-size: 0.92rem; }
+    header a:hover { color: #fff; }
+    header .marca { font-weight: 700; font-size: 1.1rem; letter-spacing: 0.02em; }
+    main { width: 100%; max-width: 640px; padding: 1.6rem 1.2rem 3rem; }
+    .cartao {
+      background: #fff; border-radius: 12px; padding: 1.6rem;
+      box-shadow: 0 1px 4px rgba(16, 30, 70, 0.08); margin-bottom: 1.2rem;
+    }
+    h1 { font-size: 1.35rem; margin-bottom: 1rem; }
+    h2 { font-size: 1.05rem; margin-bottom: 0.8rem; }
+    label { display: block; font-size: 0.88rem; margin-bottom: 0.3rem; color: #4a5468; }
+    input[type=text], input[type=password] {
+      width: 100%; padding: 0.65rem 0.8rem; font-size: 1.05rem;
+      border: 1px solid #c3cad8; border-radius: 8px; margin-bottom: 0.9rem;
+    }
+    button {
+      background: #1c2f5e; color: #fff; border: 0; border-radius: 8px;
+      padding: 0.7rem 1.3rem; font-size: 1rem; cursor: pointer;
+    }
+    button:hover { background: #27407e; }
+    button.secundario { background: #e6eaf2; color: #1c2f5e; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.93rem; }
+    th, td { text-align: left; padding: 0.5rem 0.4rem; border-bottom: 1px solid #e6e9f0; }
+    th { color: #4a5468; font-weight: 600; font-size: 0.83rem; text-transform: uppercase; }
+    .aviso { padding: 0.7rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.93rem; }
+    .aviso.erro { background: #fbe4e4; color: #8c2323; }
+    .aviso.ok { background: #e0f3e5; color: #1d6b34; }
+    .discreto { color: #737d92; font-size: 0.85rem; }
+    .pill { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 99px; font-size: 0.78rem; }
+    .pill.ativo { background: #e0f3e5; color: #1d6b34; }
+    .pill.inativo { background: #eef0f4; color: #737d92; }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="marca">🕐 Ponto BM</span>
+    <nav>
+      <a href="{{ url_for('index') }}">Bater ponto</a>
+      <a href="{{ url_for('admin') }}">Área do gestor</a>
+      {% if session.get('admin') %}<a href="{{ url_for('admin_sair') }}">Sair</a>{% endif %}
+    </nav>
+  </header>
+  <main>
+    {% with mensagens = get_flashed_messages(with_categories=true) %}
+      {% for categoria, msg in mensagens %}
+        <div class="aviso {{ categoria }}">{{ msg }}</div>
+      {% endfor %}
+    {% endwith %}
+    {% block conteudo %}{% endblock %}
+  </main>
+</body>
+</html>

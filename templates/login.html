@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block titulo %}Área do gestor — Ponto BM{% endblock %}
+{% block conteudo %}
+<div class="cartao" style="max-width:400px; margin:0 auto">
+  <h1>Área do gestor</h1>
+  <form method="post">
+    <label for="senha">Senha</label>
+    <input type="password" id="senha" name="senha" required autofocus>
+    <button type="submit">Entrar</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block titulo %}Espelho de ponto — Ponto BM{% endblock %}
+{% block conteudo %}
+<div class="cartao">
+  <h1>Espelho de ponto — {{ func.nome }}</h1>
+  <form method="get" style="margin-bottom:1rem; display:flex; gap:0.6rem; align-items:end">
+    <div>
+      <label for="mes">Mês</label>
+      <input type="month" id="mes" name="mes" value="{{ mes }}"
+             style="padding:0.5rem 0.7rem; border:1px solid #c3cad8; border-radius:8px">
+    </div>
+    <button type="submit" style="margin-bottom:0.1rem">Filtrar</button>
+  </form>
+
+  {% if linhas %}
+  <table>
+    <thead><tr><th>Data</th><th>Batidas</th><th>Total</th></tr></thead>
+    <tbody>
+      {% for l in linhas %}
+      <tr>
+        <td>{{ l.data }}</td>
+        <td>{{ l.batidas }}{% if l.incompleto %} <span class="discreto">(em aberto)</span>{% endif %}</td>
+        <td>{{ l.total }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="2" style="font-weight:700">Total do mês</td>
+        <td style="font-weight:700">{{ total_mes }}</td>
+      </tr>
+    </tfoot>
+  </table>
+  <p class="discreto" style="margin-top:0.8rem">
+    Dias com número ímpar de batidas aparecem como "em aberto" e a última batida
+    não entra na soma até o par ser fechado.
+  </p>
+  {% else %}
+  <p class="discreto">Nenhum registro neste mês.</p>
+  {% endif %}
+</div>
+
+<a href="{{ url_for('admin') }}"><button class="secundario">← Voltar</button></a>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block conteudo %}
+<div class="cartao" style="text-align:center">
+  <div style="font-size:2.6rem">✅</div>
+  <h1 style="margin-top:0.4rem">Ponto registrado, {{ nome }}!</h1>
+  <p style="font-size:1.6rem; font-weight:700; margin:0.4rem 0">{{ agora }}</p>
+  <p class="discreto">{{ data }}</p>
+</div>
+
+<div class="cartao">
+  <h2>Batidas de hoje</h2>
+  <table>
+    <thead><tr><th>Tipo</th><th>Horário</th></tr></thead>
+    <tbody>
+      {% for tipo, horario in batidas %}
+      <tr><td>{{ tipo }}</td><td>{{ horario }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p style="margin-top:0.9rem"><strong>Horas trabalhadas até agora:</strong> {{ trabalhado }}</p>
+</div>
+
+<div style="text-align:center">
+  <a href="{{ url_for('index') }}"><button class="secundario">Voltar</button></a>
+</div>
+{% endblock %}
