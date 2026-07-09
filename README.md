@@ -23,7 +23,7 @@ da rede interna.
   almoço, no café, encerrado), batidas, horas e tempo perdido do dia.
 - **Atrasos do dia**: cada atraso com os minutos excedidos e a situação —
   com botão para **abonar** ou **remover o abono**.
-- **Funcionários**: cadastro com PIN, horário de entrada e minutos permitidos
+- **Colaboradores**: cadastro com PIN, horário de entrada e minutos permitidos
   de almoço e café (configuráveis por pessoa); ativar/desativar.
 - **Espelho de ponto mensal** por colaborador: fotos das batidas, atrasos com
   abono, horas trabalhadas, tempo descontado e abonado.

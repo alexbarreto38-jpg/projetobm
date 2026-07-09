@@ -73,7 +73,7 @@
 
 <div class="cartao">
   <span class="eyebrow">Gestão <b>//</b> equipe</span>
-  <h1>Funcionários</h1>
+  <h1>Colaboradores</h1>
   {% if funcionarios %}
   <table style="margin-top:.6rem">
     <thead><tr><th>Nome</th><th>PIN</th><th>Status</th><th>Entrada / Almoço / Café</th><th></th><th></th></tr></thead>
@@ -110,12 +110,12 @@
     Entrada = horário previsto; Almoço e Café = minutos permitidos de pausa.
   </p>
   {% else %}
-  <p class="discreto">Nenhum funcionário cadastrado ainda.</p>
+  <p class="discreto">Nenhum colaborador cadastrado ainda.</p>
   {% endif %}
 </div>
 
 <div class="cartao">
-  <h2>Cadastrar funcionário</h2>
+  <h2>Cadastrar colaborador</h2>
   <form method="post" action="{{ url_for('novo_funcionario') }}">
     <label for="nome">Nome</label>
     <input type="text" id="nome" name="nome" required>
