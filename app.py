@@ -24,7 +24,39 @@ TZ = ZoneInfo(os.environ.get("PONTO_TZ", "America/Sao_Paulo"))
 app = Flask(__name__)
 app.secret_key = os.environ.get("PONTO_SECRET", "troque-esta-chave-em-producao")
 
-TIPOS = ["Entrada", "Saída almoço", "Volta almoço", "Saída"]
+ROTULOS = {
+    "entrada": "Entrada",
+    "saida_almoco": "Saída almoço",
+    "volta_almoco": "Volta almoço",
+    "saida_cafe": "Saída café",
+    "volta_cafe": "Volta café",
+    "saida": "Saída",
+}
+ORDEM = list(ROTULOS)
+
+# transições permitidas — almoço e café podem ser pulados, a ordem não
+PROXIMOS = {
+    None: ["entrada"],
+    "entrada": ["saida_almoco", "saida"],
+    "saida_almoco": ["volta_almoco"],
+    "volta_almoco": ["saida_cafe", "saida"],
+    "saida_cafe": ["volta_cafe"],
+    "volta_cafe": ["saida"],
+    "saida": [],
+}
+
+# tipos em que pode haver atraso (e onde faz sentido o aviso ao gestor)
+TIPOS_COM_ATRASO = {"entrada", "volta_almoco", "volta_cafe"}
+
+STATUS = {
+    None: ("sem-registro", "Sem registro"),
+    "entrada": ("trabalhando", "Trabalhando"),
+    "volta_almoco": ("trabalhando", "Trabalhando"),
+    "volta_cafe": ("trabalhando", "Trabalhando"),
+    "saida_almoco": ("pausa", "Em almoço"),
+    "saida_cafe": ("pausa", "No café"),
+    "saida": ("fora", "Encerrado"),
+}
 
 
 # ---------------------------------------------------------------- banco
@@ -49,21 +81,44 @@ def init_db():
     db.executescript(
         """
         CREATE TABLE IF NOT EXISTS funcionarios (
-            id    INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome  TEXT NOT NULL,
-            pin   TEXT NOT NULL UNIQUE,
-            ativo INTEGER NOT NULL DEFAULT 1
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome         TEXT NOT NULL,
+            pin          TEXT NOT NULL UNIQUE,
+            ativo        INTEGER NOT NULL DEFAULT 1,
+            hora_entrada TEXT NOT NULL DEFAULT '08:00',
+            almoco_min   INTEGER NOT NULL DEFAULT 60,
+            cafe_min     INTEGER NOT NULL DEFAULT 15
         );
         CREATE TABLE IF NOT EXISTS registros (
             id             INTEGER PRIMARY KEY AUTOINCREMENT,
             funcionario_id INTEGER NOT NULL REFERENCES funcionarios(id),
-            dia            TEXT NOT NULL,   -- YYYY-MM-DD
-            horario        TEXT NOT NULL    -- HH:MM:SS
+            dia            TEXT NOT NULL,               -- YYYY-MM-DD
+            horario        TEXT NOT NULL,               -- HH:MM:SS
+            tipo           TEXT NOT NULL,               -- entrada, saida_almoco, ...
+            foto           TEXT,                        -- data URL (jpeg) ou NULL
+            abonado        INTEGER NOT NULL DEFAULT 0   -- 1 = atraso avisado/autorizado
         );
         CREATE INDEX IF NOT EXISTS idx_registros_func_dia
             ON registros (funcionario_id, dia);
         """
     )
+    # migração de bancos criados em versões anteriores
+    cols_f = {r[1] for r in db.execute("PRAGMA table_info(funcionarios)")}
+    for col, ddl in (
+        ("hora_entrada", "ALTER TABLE funcionarios ADD COLUMN hora_entrada TEXT NOT NULL DEFAULT '08:00'"),
+        ("almoco_min", "ALTER TABLE funcionarios ADD COLUMN almoco_min INTEGER NOT NULL DEFAULT 60"),
+        ("cafe_min", "ALTER TABLE funcionarios ADD COLUMN cafe_min INTEGER NOT NULL DEFAULT 15"),
+    ):
+        if col not in cols_f:
+            db.execute(ddl)
+    cols_r = {r[1] for r in db.execute("PRAGMA table_info(registros)")}
+    for col, ddl in (
+        ("tipo", "ALTER TABLE registros ADD COLUMN tipo TEXT NOT NULL DEFAULT 'entrada'"),
+        ("foto", "ALTER TABLE registros ADD COLUMN foto TEXT"),
+        ("abonado", "ALTER TABLE registros ADD COLUMN abonado INTEGER NOT NULL DEFAULT 0"),
+    ):
+        if col not in cols_r:
+            db.execute(ddl)
     db.commit()
     db.close()
 
@@ -72,71 +127,277 @@ def agora():
     return datetime.now(TZ)
 
 
-# ---------------------------------------------------------------- cálculo de horas
+# ---------------------------------------------------------------- cálculos
 
-def total_do_dia(horarios):
-    """Soma os intervalos pareando os registros em sequência.
+def _min(h):
+    """'HH:MM[:SS]' -> minutos desde a meia-noite."""
+    p = h.split(":")
+    return int(p[0]) * 60 + int(p[1])
 
-    [08:00, 12:00, 13:00, 17:00] -> 8h. Registro ímpar sobrando é ignorado
-    (jornada em aberto).
-    """
-    total = 0
-    for i in range(0, len(horarios) - 1, 2):
-        h1 = datetime.strptime(horarios[i], "%H:%M:%S")
-        h2 = datetime.strptime(horarios[i + 1], "%H:%M:%S")
-        total += int((h2 - h1).total_seconds())
-    return total
+
+def _seg(h):
+    p = h.split(":")
+    return int(p[0]) * 3600 + int(p[1]) * 60 + (int(p[2]) if len(p) > 2 else 0)
 
 
 def fmt_segundos(seg):
-    h, resto = divmod(seg, 3600)
-    m = resto // 60
-    return f"{h:02d}:{m:02d}"
+    h, resto = divmod(max(seg, 0), 3600)
+    return f"{h:02d}:{resto // 60:02d}"
 
 
-# ---------------------------------------------------------------- ponto (funcionário)
+def fmt_minutos(m):
+    if m >= 60:
+        return f"{m // 60}h{m % 60:02d}"
+    return f"{m} min"
+
+
+def carrega_dia(db, func_id, dia):
+    return db.execute(
+        "SELECT * FROM registros WHERE funcionario_id = ? AND dia = ? ORDER BY horario, id",
+        (func_id, dia),
+    ).fetchall()
+
+
+def trabalhado_do_dia(regs):
+    """Segundos trabalhados somando os períodos entre entrada e pausa/saída.
+
+    Retorna (segundos, horário do período em aberto ou None).
+    """
+    total, ini = 0, None
+    for r in regs:
+        if r["tipo"] in ("entrada", "volta_almoco", "volta_cafe"):
+            ini = r["horario"]
+        elif ini is not None:
+            total += _seg(r["horario"]) - _seg(ini)
+            ini = None
+    return total, ini
+
+
+def atrasos_do_dia(regs, func):
+    """Atrasos do dia: entrada após o horário e pausas acima do permitido."""
+    por = {r["tipo"]: r for r in regs}
+    atrasos = []
+    if "entrada" in por:
+        m = _min(por["entrada"]["horario"]) - _min(func["hora_entrada"])
+        if m > 0:
+            atrasos.append({
+                "reg_id": por["entrada"]["id"], "evento": "Entrada",
+                "detalhe": f"previsto {func['hora_entrada']}, bateu {por['entrada']['horario'][:5]}",
+                "minutos": m, "abonado": por["entrada"]["abonado"],
+            })
+    for saida_t, volta_t, limite, nome in (
+        ("saida_almoco", "volta_almoco", func["almoco_min"], "Almoço"),
+        ("saida_cafe", "volta_cafe", func["cafe_min"], "Café da tarde"),
+    ):
+        if saida_t in por and volta_t in por:
+            dur = _min(por[volta_t]["horario"]) - _min(por[saida_t]["horario"])
+            m = dur - limite
+            if m > 0:
+                atrasos.append({
+                    "reg_id": por[volta_t]["id"], "evento": nome,
+                    "detalhe": f"pausa de {fmt_minutos(dur)} (permitido {fmt_minutos(limite)})",
+                    "minutos": m, "abonado": por[volta_t]["abonado"],
+                })
+    return atrasos
+
+
+def resumo_do_dia(db, func, dia):
+    regs = carrega_dia(db, func["id"], dia)
+    seg, aberto = trabalhado_do_dia(regs)
+    atrasos = atrasos_do_dia(regs, func)
+    perdido = sum(a["minutos"] for a in atrasos if not a["abonado"])
+    abonado = sum(a["minutos"] for a in atrasos if a["abonado"])
+    return {
+        "regs": regs,
+        "batidas": [
+            {"rotulo": ROTULOS.get(r["tipo"], r["tipo"]), "hora": r["horario"][:5],
+             "foto": r["foto"]}
+            for r in regs
+        ],
+        "trabalhado": fmt_segundos(seg),
+        "seg": seg,
+        "aberto": aberto is not None,
+        "atrasos": atrasos,
+        "perdido_min": perdido,
+        "abonado_min": abonado,
+    }
+
+
+def monta_espelho(db, func, mes):
+    """Espelho mensal: linhas por dia + totais do mês."""
+    dias = [r["dia"] for r in db.execute(
+        "SELECT DISTINCT dia FROM registros WHERE funcionario_id = ? AND dia LIKE ? ORDER BY dia",
+        (func["id"], mes + "%"),
+    )]
+    linhas, tot_seg, tot_perdido, tot_abonado = [], 0, 0, 0
+    for dia in dias:
+        r = resumo_do_dia(db, func, dia)
+        tot_seg += r["seg"]
+        tot_perdido += r["perdido_min"]
+        tot_abonado += r["abonado_min"]
+        linhas.append({
+            "data": date.fromisoformat(dia).strftime("%d/%m/%Y"),
+            **r,
+        })
+    return linhas, {
+        "dias": len(dias),
+        "trabalhado": fmt_segundos(tot_seg),
+        "perdido": tot_perdido,
+        "abonado": tot_abonado,
+    }
+
+
+# ---------------------------------------------------------------- fluxo do colaborador
+
+def func_logado():
+    if "func_id" not in session:
+        return None
+    return get_db().execute(
+        "SELECT * FROM funcionarios WHERE id = ? AND ativo = 1", (session["func_id"],)
+    ).fetchone()
+
 
 @app.route("/")
 def index():
+    if func_logado():
+        return redirect(url_for("painel"))
     return render_template("index.html")
 
 
-@app.route("/bater", methods=["POST"])
-def bater():
+@app.route("/entrar", methods=["POST"])
+def entrar():
     pin = request.form.get("pin", "").strip()
-    db = get_db()
-    func = db.execute(
+    func = get_db().execute(
         "SELECT * FROM funcionarios WHERE pin = ? AND ativo = 1", (pin,)
     ).fetchone()
     if func is None:
         flash("PIN não encontrado. Verifique com o gestor.", "erro")
         return redirect(url_for("index"))
+    session["func_id"] = func["id"]
+    return redirect(url_for("painel"))
 
+
+@app.route("/trocar")
+def trocar():
+    session.pop("func_id", None)
+    return redirect(url_for("index"))
+
+
+@app.route("/painel")
+def painel():
+    func = func_logado()
+    if func is None:
+        return redirect(url_for("index"))
+    db = get_db()
     now = agora()
     dia = now.strftime("%Y-%m-%d")
+    regs = carrega_dia(db, func["id"], dia)
+    feitos = {r["tipo"]: r["horario"][:5] for r in regs}
+    ultimo = regs[-1]["tipo"] if regs else None
+    permitidos = PROXIMOS[ultimo]
+
+    etapas = []
+    for tipo in ORDEM:
+        etapas.append({
+            "tipo": tipo,
+            "rotulo": ROTULOS[tipo],
+            "hora": feitos.get(tipo),
+            "permitido": tipo in permitidos,
+        })
+    encerrado = ultimo == "saida"
+    return render_template(
+        "painel.html",
+        func=func,
+        etapas=etapas,
+        encerrado=encerrado,
+        data=now.strftime("%d/%m/%Y"),
+    )
+
+
+@app.route("/bater/<tipo>", methods=["GET", "POST"])
+def bater(tipo):
+    func = func_logado()
+    if func is None:
+        return redirect(url_for("index"))
+    if tipo not in ROTULOS:
+        return redirect(url_for("painel"))
+
+    db = get_db()
+    now = agora()
+    dia = now.strftime("%Y-%m-%d")
+    regs = carrega_dia(db, func["id"], dia)
+    ultimo = regs[-1]["tipo"] if regs else None
+    if tipo not in PROXIMOS[ultimo]:
+        flash("Esta etapa não está disponível agora.", "erro")
+        return redirect(url_for("painel"))
+
+    if request.method == "GET":
+        return render_template(
+            "bater.html",
+            func=func,
+            tipo=tipo,
+            rotulo=ROTULOS[tipo],
+            pode_atrasar=tipo in TIPOS_COM_ATRASO,
+            hora_prevista=func["hora_entrada"] if tipo == "entrada" else None,
+        )
+
+    foto = request.form.get("foto") or None
+    avisado = 1 if request.form.get("avisado") else 0
     horario = now.strftime("%H:%M:%S")
     db.execute(
-        "INSERT INTO registros (funcionario_id, dia, horario) VALUES (?, ?, ?)",
-        (func["id"], dia, horario),
+        "INSERT INTO registros (funcionario_id, dia, horario, tipo, foto, abonado)"
+        " VALUES (?, ?, ?, ?, ?, ?)",
+        (func["id"], dia, horario, tipo, foto, avisado),
     )
     db.commit()
 
-    registros = db.execute(
-        "SELECT horario FROM registros WHERE funcionario_id = ? AND dia = ? ORDER BY horario",
-        (func["id"], dia),
-    ).fetchall()
-    horarios = [r["horario"] for r in registros]
-    batidas = [
-        (TIPOS[i] if i < len(TIPOS) else f"Registro {i + 1}", h[:5])
-        for i, h in enumerate(horarios)
-    ]
+    # aviso de atraso desta batida
+    regs = carrega_dia(db, func["id"], dia)
+    for a in atrasos_do_dia(regs, func):
+        if a["reg_id"] == regs[-1]["id"] and a["minutos"] > 0:
+            if a["abonado"]:
+                flash(
+                    f"{a['evento']}: excedeu {fmt_minutos(a['minutos'])} "
+                    f"({a['detalhe']}) — marcado como avisado e autorizado pelo gestor.",
+                    "ok",
+                )
+            else:
+                flash(
+                    f"Atenção: {a['evento'].lower()} excedeu {fmt_minutos(a['minutos'])} "
+                    f"({a['detalhe']}). Esse tempo será descontado.",
+                    "erro",
+                )
+
+    if tipo == "saida":
+        return redirect(url_for("resumo_dia"))
+    flash(f"{ROTULOS[tipo]} registrada às {horario[:5]}.", "ok")
+    return redirect(url_for("painel"))
+
+
+@app.route("/resumo")
+def resumo_dia():
+    func = func_logado()
+    if func is None:
+        return redirect(url_for("index"))
+    now = agora()
+    r = resumo_do_dia(get_db(), func, now.strftime("%Y-%m-%d"))
     return render_template(
-        "confirmacao.html",
-        nome=func["nome"],
-        agora=now.strftime("%H:%M"),
-        data=now.strftime("%d/%m/%Y"),
-        batidas=batidas,
-        trabalhado=fmt_segundos(total_do_dia(horarios)),
+        "resumo.html", func=func, r=r, data=now.strftime("%d/%m/%Y"),
+        fmt_minutos=fmt_minutos,
+    )
+
+
+@app.route("/meu-espelho")
+def meu_espelho():
+    func = func_logado()
+    if func is None:
+        flash("Digite seu PIN para consultar o espelho.", "erro")
+        return redirect(url_for("index"))
+    mes = request.args.get("mes", agora().strftime("%Y-%m"))
+    linhas, totais = monta_espelho(get_db(), func, mes)
+    return render_template(
+        "espelho.html", func=func, mes=mes, linhas=linhas, totais=totais,
+        admin=False, fmt_minutos=fmt_minutos,
     )
 
 
@@ -162,7 +423,39 @@ def admin():
     funcionarios = db.execute(
         "SELECT * FROM funcionarios ORDER BY ativo DESC, nome"
     ).fetchall()
-    return render_template("admin.html", funcionarios=funcionarios)
+
+    now = agora()
+    dia = now.strftime("%Y-%m-%d")
+    hoje, atrasos_hoje = [], []
+    for f in funcionarios:
+        if not f["ativo"]:
+            continue
+        regs = carrega_dia(db, f["id"], dia)
+        seg, aberto = trabalhado_do_dia(regs)
+        if aberto is not None:
+            seg += _seg(now.strftime("%H:%M:%S")) - _seg(aberto)
+        ultimo = regs[-1]["tipo"] if regs else None
+        classe, rotulo = STATUS[ultimo]
+        atrasos = atrasos_do_dia(regs, f)
+        hoje.append({
+            "nome": f["nome"],
+            "classe": classe,
+            "rotulo": rotulo,
+            "batidas": " · ".join(r["horario"][:5] for r in regs) or "—",
+            "horas": fmt_segundos(seg),
+            "perdido": sum(a["minutos"] for a in atrasos if not a["abonado"]),
+        })
+        for a in atrasos:
+            atrasos_hoje.append({**a, "nome": f["nome"]})
+
+    return render_template(
+        "admin.html",
+        funcionarios=funcionarios,
+        hoje=hoje,
+        atrasos_hoje=atrasos_hoje,
+        data_hoje=now.strftime("%d/%m/%Y"),
+        fmt_minutos=fmt_minutos,
+    )
 
 
 @app.route("/admin/sair")
@@ -177,16 +470,46 @@ def novo_funcionario():
         return redirect(url_for("admin"))
     nome = request.form.get("nome", "").strip()
     pin = request.form.get("pin", "").strip()
+    hora_entrada = request.form.get("hora_entrada", "08:00").strip() or "08:00"
+    almoco = request.form.get("almoco_min", "60").strip() or "60"
+    cafe = request.form.get("cafe_min", "15").strip() or "15"
     if not nome or not pin.isdigit() or not 4 <= len(pin) <= 6:
         flash("Informe um nome e um PIN numérico de 4 a 6 dígitos.", "erro")
         return redirect(url_for("admin"))
     db = get_db()
     try:
-        db.execute("INSERT INTO funcionarios (nome, pin) VALUES (?, ?)", (nome, pin))
+        db.execute(
+            "INSERT INTO funcionarios (nome, pin, hora_entrada, almoco_min, cafe_min)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (nome, pin, hora_entrada, int(almoco), int(cafe)),
+        )
         db.commit()
         flash(f"{nome} cadastrado(a) com sucesso.", "ok")
     except sqlite3.IntegrityError:
         flash("Este PIN já está em uso — escolha outro.", "erro")
+    except ValueError:
+        flash("Minutos de almoço e café devem ser números.", "erro")
+    return redirect(url_for("admin"))
+
+
+@app.route("/admin/funcionarios/<int:func_id>/config", methods=["POST"])
+def config_funcionario(func_id):
+    if not admin_logado():
+        return redirect(url_for("admin"))
+    try:
+        get_db().execute(
+            "UPDATE funcionarios SET hora_entrada = ?, almoco_min = ?, cafe_min = ? WHERE id = ?",
+            (
+                request.form.get("hora_entrada", "08:00"),
+                int(request.form.get("almoco_min", 60)),
+                int(request.form.get("cafe_min", 15)),
+                func_id,
+            ),
+        )
+        get_db().commit()
+        flash("Horários atualizados.", "ok")
+    except ValueError:
+        flash("Minutos de almoço e café devem ser números.", "erro")
     return redirect(url_for("admin"))
 
 
@@ -200,6 +523,16 @@ def alternar_funcionario(func_id):
     return redirect(url_for("admin"))
 
 
+@app.route("/admin/abonar/<int:reg_id>", methods=["POST"])
+def abonar(reg_id):
+    if not admin_logado():
+        return redirect(url_for("admin"))
+    db = get_db()
+    db.execute("UPDATE registros SET abonado = 1 - abonado WHERE id = ?", (reg_id,))
+    db.commit()
+    return redirect(request.form.get("voltar") or url_for("admin"))
+
+
 @app.route("/admin/espelho/<int:func_id>")
 def espelho(func_id):
     if not admin_logado():
@@ -208,37 +541,11 @@ def espelho(func_id):
     func = db.execute("SELECT * FROM funcionarios WHERE id = ?", (func_id,)).fetchone()
     if func is None:
         return redirect(url_for("admin"))
-
-    hoje = agora().date()
-    mes = request.args.get("mes", hoje.strftime("%Y-%m"))
-    registros = db.execute(
-        "SELECT dia, horario FROM registros"
-        " WHERE funcionario_id = ? AND dia LIKE ? ORDER BY dia, horario",
-        (func_id, mes + "%"),
-    ).fetchall()
-
-    por_dia = {}
-    for r in registros:
-        por_dia.setdefault(r["dia"], []).append(r["horario"])
-
-    linhas = []
-    total_mes = 0
-    for dia, horarios in sorted(por_dia.items()):
-        seg = total_do_dia(horarios)
-        total_mes += seg
-        linhas.append({
-            "data": date.fromisoformat(dia).strftime("%d/%m/%Y"),
-            "batidas": " · ".join(h[:5] for h in horarios),
-            "incompleto": len(horarios) % 2 == 1,
-            "total": fmt_segundos(seg),
-        })
-
+    mes = request.args.get("mes", agora().strftime("%Y-%m"))
+    linhas, totais = monta_espelho(db, func, mes)
     return render_template(
-        "espelho.html",
-        func=func,
-        mes=mes,
-        linhas=linhas,
-        total_mes=fmt_segundos(total_mes),
+        "espelho.html", func=func, mes=mes, linhas=linhas, totais=totais,
+        admin=True, fmt_minutos=fmt_minutos,
     )
 
 

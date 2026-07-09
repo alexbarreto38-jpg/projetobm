@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block titulo %}Meu ponto — Ponto BM{% endblock %}
+{% block conteudo %}
+<div class="cartao">
+  <span class="eyebrow">Meu ponto <b>//</b> {{ data }}</span>
+  <h1>Olá, <span class="gold">{{ func.nome }}</span></h1>
+  <p class="discreto" style="margin-bottom:1.3rem">
+    {% if encerrado %}Jornada de hoje encerrada. Bom descanso!
+    {% else %}Toque na etapa disponível para bater o ponto.{% endif %}
+  </p>
+
+  <div class="etapas">
+    {% for e in etapas %}
+      {% if e.hora %}
+      <div class="etapa feita">
+        <span class="et-nome">{{ e.rotulo }}</span>
+        <span class="et-hora hora">{{ e.hora }}</span>
+        <svg viewBox="0 0 24 24" class="et-check"><path d="M20 6 9 17l-5-5"/></svg>
+      </div>
+      {% elif e.permitido %}
+      <a class="etapa disponivel" href="{{ url_for('bater', tipo=e.tipo) }}">
+        <span class="et-nome">{{ e.rotulo }}</span>
+        <span class="et-acao">Bater ponto →</span>
+      </a>
+      {% else %}
+      <div class="etapa bloqueada">
+        <span class="et-nome">{{ e.rotulo }}</span>
+        <span class="et-hora">—</span>
+      </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+</div>
+
+<div style="display:flex;gap:.8rem;justify-content:center;flex-wrap:wrap">
+  {% if encerrado %}
+  <a href="{{ url_for('resumo_dia') }}"><button>Ver resumo do dia</button></a>
+  {% endif %}
+  <a href="{{ url_for('meu_espelho') }}"><button class="secundario">Meu espelho do mês</button></a>
+  <a href="{{ url_for('trocar') }}"><button class="secundario">Trocar usuário</button></a>
+</div>
+
+<style>
+  .etapas{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
+  .etapa{border:1px solid var(--line-soft);border-radius:16px;padding:18px;position:relative;
+    display:flex;flex-direction:column;gap:6px;background:var(--ink2);transition:.25s}
+  .et-nome{font-family:var(--disp);font-weight:700;font-size:.98rem}
+  .et-hora{font-family:var(--mono);font-size:1.05rem;color:var(--zinc-dim)}
+  .etapa.feita{border-color:rgba(37,211,102,.3)}
+  .etapa.feita .et-hora{color:var(--zap)}
+  .et-check{position:absolute;top:14px;right:14px;width:18px;height:18px;
+    fill:none;stroke:var(--zap);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+  .etapa.disponivel{border-color:var(--line);cursor:pointer;
+    background:linear-gradient(155deg,rgba(245,197,61,.12),rgba(245,197,61,.03))}
+  .etapa.disponivel:hover{transform:translateY(-3px);border-color:var(--gold)}
+  .et-acao{font-family:var(--mono);font-size:.78rem;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--gold)}
+  .etapa.bloqueada{opacity:.45}
+</style>
+{% endblock %}

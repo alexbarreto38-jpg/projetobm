@@ -2,7 +2,7 @@
 {% block titulo %}Espelho de ponto — Ponto BM{% endblock %}
 {% block conteudo %}
 <div class="cartao">
-  <span class="eyebrow">Relatório mensal <b>//</b> {{ mes }}</span>
+  <span class="eyebrow">{% if admin %}Relatório mensal{% else %}Meu espelho{% endif %} <b>//</b> {{ mes }}</span>
   <h1>Espelho de ponto — <span class="gold">{{ func.nome }}</span></h1>
   <form method="get" style="margin:1.2rem 0;display:flex;gap:.8rem;align-items:end;flex-wrap:wrap">
     <div style="flex:0 0 200px">
@@ -12,33 +12,72 @@
     <button type="submit">Filtrar</button>
   </form>
 
-  {% if linhas %}
-  <table>
-    <thead><tr><th>Data</th><th>Batidas</th><th>Total</th></tr></thead>
+  <div class="kpis">
+    <div class="kpi"><span class="kpi-num">{{ totais.trabalhado }}</span><span class="kpi-lbl">Horas trabalhadas</span></div>
+    <div class="kpi"><span class="kpi-num">{{ totais.dias }}</span><span class="kpi-lbl">Dias com registro</span></div>
+    <div class="kpi"><span class="kpi-num" style="color:{% if totais.perdido %}#f0a8a8{% else %}var(--zap){% endif %}">{{ fmt_minutos(totais.perdido) if totais.perdido else '0 min' }}</span><span class="kpi-lbl">Tempo descontado</span></div>
+    <div class="kpi"><span class="kpi-num" style="color:var(--zap)">{{ fmt_minutos(totais.abonado) if totais.abonado else '0 min' }}</span><span class="kpi-lbl">Abonado pelo gestor</span></div>
+  </div>
+</div>
+
+{% if linhas %}
+{% for l in linhas %}
+<div class="cartao" style="padding:22px 26px">
+  <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:.4rem">
+    <h2 style="margin:0">{{ l.data }}</h2>
+    <span class="hora" style="font-weight:700">{{ l.trabalhado }}{% if l.aberto %} <span class="discreto" style="font-family:var(--body)">(em aberto)</span>{% endif %}</span>
+  </div>
+  <div class="batidas-linha">
+    {% for b in l.batidas %}
+    <span class="batida-chip">
+      {% if b.foto %}<img src="{{ b.foto }}" class="foto-mini">{% endif %}
+      {{ b.rotulo }} <span class="hora">{{ b.hora }}</span>
+    </span>
+    {% endfor %}
+  </div>
+  {% if l.atrasos %}
+  <table style="margin-top:.8rem">
+    <thead><tr><th>Atraso</th><th>Excedido</th><th>Situação</th>{% if admin %}<th></th>{% endif %}</tr></thead>
     <tbody>
-      {% for l in linhas %}
+      {% for a in l.atrasos %}
       <tr>
-        <td>{{ l.data }}</td>
-        <td class="hora">{{ l.batidas }}{% if l.incompleto %} <span class="discreto" style="font-family:var(--body)">(em aberto)</span>{% endif %}</td>
-        <td class="hora">{{ l.total }}</td>
+        <td>{{ a.evento }} <span class="discreto">({{ a.detalhe }})</span></td>
+        <td class="hora">{{ fmt_minutos(a.minutos) }}</td>
+        <td>
+          {% if a.abonado %}<span class="pill ativo">abonado</span>
+          {% else %}<span class="pill atraso">descontado</span>{% endif %}
+        </td>
+        {% if admin %}
+        <td>
+          <form method="post" action="{{ url_for('abonar', reg_id=a.reg_id) }}">
+            <input type="hidden" name="voltar" value="{{ request.full_path }}">
+            <button class="secundario" style="padding:.3rem .8rem;font-size:.78rem">
+              {{ 'Remover abono' if a.abonado else 'Abonar' }}
+            </button>
+          </form>
+        </td>
+        {% endif %}
       </tr>
       {% endfor %}
     </tbody>
-    <tfoot>
-      <tr>
-        <td colspan="2" style="font-family:var(--disp);font-weight:700">Total do mês</td>
-        <td class="hora" style="font-weight:700">{{ total_mes }}</td>
-      </tr>
-    </tfoot>
   </table>
-  <p class="discreto" style="margin-top:.9rem">
-    Dias com número ímpar de batidas aparecem como "em aberto" e a última batida
-    não entra na soma até o par ser fechado.
-  </p>
-  {% else %}
-  <p class="discreto">Nenhum registro neste mês.</p>
   {% endif %}
 </div>
+{% endfor %}
+{% else %}
+<div class="cartao"><p class="discreto">Nenhum registro neste mês.</p></div>
+{% endif %}
 
-<a href="{{ url_for('admin') }}"><button class="secundario">← Voltar</button></a>
+<a href="{{ url_for('admin') if admin else url_for('painel') }}"><button class="secundario">← Voltar</button></a>
+
+<style>
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px}
+  .kpi{background:var(--ink2);border:1px solid var(--line-soft);border-radius:16px;
+    padding:16px;display:flex;flex-direction:column;gap:6px}
+  .kpi-num{font-family:var(--disp);font-weight:800;font-size:1.35rem;color:var(--gold);letter-spacing:-.01em}
+  .kpi-lbl{font-family:var(--mono);font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--zinc-dim)}
+  .batidas-linha{display:flex;flex-wrap:wrap;gap:8px;margin-top:.7rem}
+  .batida-chip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line-soft);
+    border-radius:999px;padding:.3rem .8rem;font-size:.85rem;background:var(--ink2)}
+</style>
 {% endblock %}

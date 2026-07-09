@@ -101,6 +101,12 @@
       font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;border:1px solid transparent}
     .pill.ativo{background:rgba(37,211,102,.1);border-color:rgba(37,211,102,.35);color:var(--zap)}
     .pill.inativo{background:rgba(255,255,255,.04);border-color:var(--line-soft);color:var(--zinc-dim)}
+    .pill.pausa{background:rgba(245,197,61,.08);border-color:var(--line);color:var(--gold)}
+    .pill.atraso{background:rgba(220,80,80,.1);border-color:rgba(220,80,80,.35);color:#f0a8a8}
+
+    .foto-mini{width:34px;height:34px;object-fit:cover;border-radius:8px;
+      border:1px solid var(--line-soft);vertical-align:middle;cursor:pointer;transition:.2s}
+    .foto-mini:hover{transform:scale(2.6);border-color:var(--gold)}
 
     .i3d{width:64px;height:64px;border-radius:18px;display:grid;place-items:center;flex-shrink:0;
       margin:0 auto 18px}
@@ -128,6 +134,7 @@
     </a>
     <nav>
       <a href="{{ url_for('index') }}">Bater ponto</a>
+      {% if session.get('func_id') %}<a href="{{ url_for('meu_espelho') }}">Meu espelho</a>{% endif %}
       <a href="{{ url_for('admin') }}">Área do gestor</a>
       {% if session.get('admin') %}<a href="{{ url_for('admin_sair') }}">Sair</a>{% endif %}
     </nav>

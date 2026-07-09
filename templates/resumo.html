@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block titulo %}Resumo do dia — Ponto BM{% endblock %}
+{% block conteudo %}
+<div class="cartao" style="text-align:center">
+  <div class="i3d i3d--zap">
+    <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+  </div>
+  <span class="eyebrow">Jornada encerrada <b>//</b> {{ data }}</span>
+  <h1>Bom descanso, <span class="gold">{{ func.nome }}</span>!</h1>
+  <p class="num-grande" style="margin:.6rem 0 .2rem">{{ r.trabalhado }}</p>
+  <p class="discreto">horas trabalhadas hoje</p>
+</div>
+
+<div class="cartao">
+  <h2>Batidas do dia</h2>
+  <table>
+    <thead><tr><th>Etapa</th><th>Horário</th><th>Foto</th></tr></thead>
+    <tbody>
+      {% for b in r.batidas %}
+      <tr>
+        <td>{{ b.rotulo }}</td>
+        <td class="hora">{{ b.hora }}</td>
+        <td>{% if b.foto %}<img src="{{ b.foto }}" class="foto-mini">{% else %}<span class="discreto">—</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="cartao">
+  <h2>Pontualidade</h2>
+  {% if r.atrasos %}
+  <table>
+    <thead><tr><th>Evento</th><th>Excedido</th><th>Situação</th></tr></thead>
+    <tbody>
+      {% for a in r.atrasos %}
+      <tr>
+        <td>{{ a.evento }} <span class="discreto">({{ a.detalhe }})</span></td>
+        <td class="hora">{{ fmt_minutos(a.minutos) }}</td>
+        <td>
+          {% if a.abonado %}<span class="pill ativo">avisado / abonado</span>
+          {% else %}<span class="pill atraso">descontado</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p style="margin-top:1rem">
+    {% if r.perdido_min %}
+    <span class="eyebrow" style="margin:0">Tempo perdido hoje</span><br>
+    <span class="hora" style="font-size:1.2rem;font-weight:700;color:#f0a8a8">{{ fmt_minutos(r.perdido_min) }}</span>
+    {% endif %}
+    {% if r.abonado_min %}
+    <br><span class="discreto">Abonado pelo gestor: {{ fmt_minutos(r.abonado_min) }}</span>
+    {% endif %}
+  </p>
+  {% else %}
+  <p class="discreto">✦ Nenhum atraso hoje — pontualidade em dia!</p>
+  {% endif %}
+</div>
+
+<div style="display:flex;gap:.8rem;justify-content:center;flex-wrap:wrap">
+  <a href="{{ url_for('meu_espelho') }}"><button class="secundario">Meu espelho do mês</button></a>
+  <a href="{{ url_for('trocar') }}"><button class="secundario">Sair</button></a>
+</div>
+{% endblock %}

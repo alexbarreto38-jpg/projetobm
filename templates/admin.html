@@ -2,21 +2,99 @@
 {% block titulo %}Gestor — Ponto BM{% endblock %}
 {% block conteudo %}
 <div class="cartao">
+  <span class="eyebrow">Painel <b>//</b> {{ data_hoje }}</span>
+  <h1>Equipe <span class="gold">hoje</span></h1>
+  {% if hoje %}
+  <table style="margin-top:.6rem">
+    <thead><tr><th>Colaborador</th><th>Situação</th><th>Batidas</th><th>Horas</th><th>Perdido</th></tr></thead>
+    <tbody>
+      {% for h in hoje %}
+      <tr>
+        <td>{{ h.nome }}</td>
+        <td>
+          {% if h.classe == 'trabalhando' %}<span class="pill ativo">{{ h.rotulo }}</span>
+          {% elif h.classe == 'pausa' %}<span class="pill pausa">{{ h.rotulo }}</span>
+          {% elif h.classe == 'fora' %}<span class="pill inativo">{{ h.rotulo }}</span>
+          {% else %}<span class="discreto">{{ h.rotulo }}</span>{% endif %}
+        </td>
+        <td class="hora">{{ h.batidas }}</td>
+        <td class="hora">{{ h.horas }}</td>
+        <td class="hora" style="color:{% if h.perdido %}#f0a8a8{% else %}var(--zinc-dim){% endif %}">
+          {{ fmt_minutos(h.perdido) if h.perdido else '—' }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="discreto" style="margin-top:.8rem">
+    Quem está com a jornada em aberto tem as horas contadas até agora.
+  </p>
+  {% else %}
+  <p class="discreto">Nenhum colaborador ativo ainda — cadastre abaixo.</p>
+  {% endif %}
+</div>
+
+<div class="cartao">
+  <span class="eyebrow">Pontualidade <b>//</b> hoje</span>
+  <h2 style="margin-top:.3rem">Atrasos do dia</h2>
+  {% if atrasos_hoje %}
+  <table>
+    <thead><tr><th>Colaborador</th><th>Evento</th><th>Excedido</th><th>Situação</th><th></th></tr></thead>
+    <tbody>
+      {% for a in atrasos_hoje %}
+      <tr>
+        <td>{{ a.nome }}</td>
+        <td>{{ a.evento }} <span class="discreto">({{ a.detalhe }})</span></td>
+        <td class="hora">{{ fmt_minutos(a.minutos) }}</td>
+        <td>
+          {% if a.abonado %}<span class="pill ativo">avisou / abonado</span>
+          {% else %}<span class="pill atraso">descontado</span>{% endif %}
+        </td>
+        <td>
+          <form method="post" action="{{ url_for('abonar', reg_id=a.reg_id) }}">
+            <input type="hidden" name="voltar" value="{{ url_for('admin') }}">
+            <button class="secundario" style="padding:.3rem .8rem;font-size:.78rem">
+              {{ 'Remover abono' if a.abonado else 'Abonar' }}
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="discreto" style="margin-top:.8rem">
+    "Avisou / abonado" = o colaborador marcou que te avisou e você autorizou, ou você abonou por aqui.
+    Atrasos descontados entram no tempo perdido do mês.
+  </p>
+  {% else %}
+  <p class="discreto">✦ Nenhum atraso registrado hoje.</p>
+  {% endif %}
+</div>
+
+<div class="cartao">
   <span class="eyebrow">Gestão <b>//</b> equipe</span>
   <h1>Funcionários</h1>
   {% if funcionarios %}
   <table style="margin-top:.6rem">
-    <thead><tr><th>Nome</th><th>PIN</th><th>Status</th><th></th><th></th></tr></thead>
+    <thead><tr><th>Nome</th><th>PIN</th><th>Status</th><th>Entrada / Almoço / Café</th><th></th><th></th></tr></thead>
     <tbody>
       {% for f in funcionarios %}
       <tr>
-        <td>{{ f.nome }}</td>
+        <td>{{ f.nome }}<br><a href="{{ url_for('espelho', func_id=f.id) }}" class="gold" style="font-size:.85rem">Espelho de ponto</a></td>
         <td class="hora">{{ f.pin }}</td>
         <td>
           {% if f.ativo %}<span class="pill ativo">ativo</span>
           {% else %}<span class="pill inativo">inativo</span>{% endif %}
         </td>
-        <td><a href="{{ url_for('espelho', func_id=f.id) }}" class="gold" style="font-size:.88rem">Espelho de ponto</a></td>
+        <td>
+          <form method="post" action="{{ url_for('config_funcionario', func_id=f.id) }}"
+                style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <input type="time" name="hora_entrada" value="{{ f.hora_entrada }}" class="mini">
+            <input type="text" name="almoco_min" value="{{ f.almoco_min }}" class="mini" style="width:56px" title="Minutos de almoço">
+            <input type="text" name="cafe_min" value="{{ f.cafe_min }}" class="mini" style="width:56px" title="Minutos de café">
+            <button class="secundario" style="padding:.3rem .7rem;font-size:.78rem">Salvar</button>
+          </form>
+        </td>
         <td>
           <form method="post" action="{{ url_for('alternar_funcionario', func_id=f.id) }}">
             <button class="secundario" style="padding:.35rem .9rem;font-size:.8rem">
@@ -28,6 +106,9 @@
       {% endfor %}
     </tbody>
   </table>
+  <p class="discreto" style="margin-top:.8rem">
+    Entrada = horário previsto; Almoço e Café = minutos permitidos de pausa.
+  </p>
   {% else %}
   <p class="discreto">Nenhum funcionário cadastrado ainda.</p>
   {% endif %}
@@ -40,7 +121,26 @@
     <input type="text" id="nome" name="nome" required>
     <label for="pin">PIN (4 a 6 dígitos — usado para bater ponto)</label>
     <input type="text" id="pin" name="pin" inputmode="numeric" pattern="\d{4,6}" required>
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      <div>
+        <label for="hora_entrada">Horário de entrada</label>
+        <input type="time" id="hora_entrada" name="hora_entrada" value="08:00">
+      </div>
+      <div>
+        <label for="almoco_min">Almoço (min)</label>
+        <input type="text" id="almoco_min" name="almoco_min" value="60" style="width:90px">
+      </div>
+      <div>
+        <label for="cafe_min">Café (min)</label>
+        <input type="text" id="cafe_min" name="cafe_min" value="15" style="width:90px">
+      </div>
+    </div>
     <button type="submit">Cadastrar</button>
   </form>
 </div>
+
+<style>
+  input.mini{margin-bottom:0;padding:.35rem .5rem;font-size:.85rem;border-radius:8px}
+  input[type=time]{color-scheme:dark}
+</style>
 {% endblock %}

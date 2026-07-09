@@ -4,17 +4,37 @@ App interno de registro de ponto para a empresa. Feito em Python (Flask) com
 banco SQLite — sem dependência de serviços externos, roda em qualquer máquina
 da rede interna.
 
-## Funcionalidades
+## Como funciona
 
-- **Bater ponto por PIN**: cada funcionário tem um PIN de 4 a 6 dígitos e
-  registra entrada, saída para o almoço, volta do almoço e saída do dia em um
-  terminal compartilhado (computador ou tablet).
-- **Confirmação na hora**: após a batida, o funcionário vê as batidas do dia e
-  o total de horas trabalhadas até o momento.
-- **Área do gestor** (protegida por senha): cadastro, desativação e reativação
-  de funcionários.
-- **Espelho de ponto mensal**: batidas dia a dia, total diário e total do mês
-  por funcionário, com filtro por mês.
+### Colaborador
+1. Digita o PIN na tela inicial e cai no **painel de etapas** do dia:
+   Entrada · Saída almoço · Volta almoço · Saída café · Volta café · Saída.
+2. Toca na etapa disponível, vê o **relógio ao vivo** e a **câmera** (a foto é
+   tirada automaticamente no momento da batida) e confirma.
+3. Se estiver atrasado, pode marcar a caixinha **"Avisei o gestor e fui
+   autorizado(a)"** — o atraso fica registrado como abonado.
+4. Ao bater a **Saída**, aparece o **resumão do dia**: batidas, fotos, horas
+   trabalhadas e atrasos (descontados ou abonados).
+5. Em **Meu espelho**, consulta o mês inteiro: horas trabalhadas, dias com
+   registro, tempo descontado e tempo abonado.
+
+### Gestor (senha própria)
+- **Equipe hoje**: situação de cada colaborador ao vivo (trabalhando, em
+  almoço, no café, encerrado), batidas, horas e tempo perdido do dia.
+- **Atrasos do dia**: cada atraso com os minutos excedidos e a situação —
+  com botão para **abonar** ou **remover o abono**.
+- **Funcionários**: cadastro com PIN, horário de entrada e minutos permitidos
+  de almoço e café (configuráveis por pessoa); ativar/desativar.
+- **Espelho de ponto mensal** por colaborador: fotos das batidas, atrasos com
+  abono, horas trabalhadas, tempo descontado e abonado.
+
+### Penalidades (atrasos)
+- **Entrada**: bater depois do horário previsto (ex.: previsto 08:00, bateu
+  08:24) gera aviso na hora com os minutos excedidos (24 min).
+- **Almoço e café**: pausa acima do permitido gera o excedente.
+- Atraso **abonado** (colaborador avisou e o gestor autorizou, ou o gestor
+  abonou no painel) não entra no tempo descontado.
+- O mês fecha com o total: horas trabalhadas, tempo descontado e abonado.
 
 ## Como rodar
 
@@ -25,6 +45,11 @@ python app.py
 
 O app sobe em `http://localhost:5000`. O banco (`ponto.db`) é criado
 automaticamente na primeira execução.
+
+> **Câmera:** os navegadores só liberam a câmera em `http://localhost` ou em
+> endereços com **HTTPS**. Se for acessar pelo IP da rede (ex.:
+> `http://192.168.0.10:5000`), a batida funciona normalmente, porém sem foto.
+> Para ter foto na rede interna, use um túnel/proxy com HTTPS.
 
 ### Configuração (opcional, via variáveis de ambiente)
 
@@ -42,15 +67,7 @@ automaticamente na primeira execução.
 ## Primeiros passos
 
 1. Acesse **Área do gestor** e entre com a senha (`admin` por padrão).
-2. Cadastre os funcionários com nome e PIN.
-3. Deixe a tela inicial aberta em um computador/tablet compartilhado — cada
-   pessoa digita o próprio PIN para bater o ponto.
-4. No fim do mês, abra o **Espelho de ponto** de cada funcionário para ver as
-   horas.
-
-## Como as horas são calculadas
-
-As batidas do dia são pareadas em sequência: 1ª–2ª, 3ª–4ª, e assim por diante.
-Exemplo: `08:00 · 12:00 · 13:00 · 17:00` = 8h. Se o dia tem um número ímpar de
-batidas (jornada em aberto), a última batida fica de fora da soma até o par
-ser fechado.
+2. Cadastre os colaboradores com nome, PIN, horário de entrada e minutos de
+   almoço/café.
+3. Cada colaborador entra com o próprio PIN e bate as etapas do dia.
+4. Acompanhe tudo no painel do gestor e feche o mês pelo espelho de ponto.
