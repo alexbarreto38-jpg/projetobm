@@ -126,6 +126,11 @@
       box-shadow:0 16px 30px -12px rgba(37,211,102,.5),inset 0 2px 0 rgba(255,255,255,.5),inset 0 -10px 18px rgba(8,110,55,.4)}
     .i3d--zap svg{stroke:#06270f}
 
+    details.contestar summary{cursor:pointer;color:var(--gold);font-size:.82rem;
+      list-style:none;display:inline-block;margin-top:.3rem}
+    details.contestar summary::-webkit-details-marker{display:none}
+    details.contestar summary::before{content:"⚑ ";}
+    details.contestar[open] summary{color:var(--zinc)}
     .gold{color:var(--gold)}
     .num-grande{font-family:var(--disp);font-weight:800;font-size:clamp(2.2rem,7vw,3rem);
       color:var(--gold);letter-spacing:-.02em;line-height:1}

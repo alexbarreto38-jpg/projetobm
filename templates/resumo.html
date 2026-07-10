@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import situacao_pill, contestar_form %}
 {% block titulo %}Resumo do dia — Bater Ponto da WISE{% endblock %}
 {% block conteudo %}
 <div class="cartao" style="text-align:center">
@@ -37,12 +38,10 @@
       <tr>
         <td>{{ a.evento }} <span class="discreto">({{ a.detalhe }})</span>
           {% if a.motivo %}<br><span class="discreto">Motivo: “{{ a.motivo }}”</span>{% endif %}
+          {% if a.contestacao %}<br><span class="discreto">Contestação: “{{ a.contestacao }}”</span>{% endif %}
         </td>
         <td class="hora">{{ fmt_minutos(a.minutos) }}</td>
-        <td>
-          {% if a.abonado %}<span class="pill ativo">avisado / abonado</span>
-          {% else %}<span class="pill atraso">descontado</span>{% endif %}
-        </td>
+        <td>{{ situacao_pill(a) }}<br>{{ contestar_form(a) }}</td>
       </tr>
       {% endfor %}
     </tbody>

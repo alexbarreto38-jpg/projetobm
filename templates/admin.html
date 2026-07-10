@@ -1,6 +1,39 @@
 {% extends "base.html" %}
+{% from "_macros.html" import situacao_pill %}
 {% block titulo %}Gestor — Bater Ponto da WISE{% endblock %}
 {% block conteudo %}
+{% if contestacoes %}
+<div class="cartao" style="border-color:var(--line)">
+  <span class="eyebrow">Contestações <b>//</b> aguardando você</span>
+  <h2 style="margin-top:.3rem">Contestações pendentes</h2>
+  <div style="overflow-x:auto">
+  <table style="margin-top:.6rem;min-width:560px">
+    <thead><tr><th>Colaborador</th><th>Dia / Evento</th><th>Motivo do colaborador</th><th>Excedido</th><th></th></tr></thead>
+    <tbody>
+      {% for a in contestacoes %}
+      <tr>
+        <td>{{ a.nome }}</td>
+        <td>{{ a.data }}<br><span class="discreto">{{ a.evento }} ({{ a.detalhe }})</span></td>
+        <td>“{{ a.contestacao }}”</td>
+        <td class="hora">{{ fmt_minutos(a.minutos) }}</td>
+        <td style="white-space:nowrap">
+          <form method="post" action="{{ url_for('responder_contestacao', reg_id=a.reg_id, acao='aprovar') }}" style="display:inline">
+            <button style="padding:.35rem .8rem;font-size:.78rem">Aprovar</button>
+          </form>
+          <form method="post" action="{{ url_for('responder_contestacao', reg_id=a.reg_id, acao='recusar') }}" style="display:inline">
+            <button class="secundario" style="padding:.35rem .8rem;font-size:.78rem">Recusar</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="discreto" style="margin-top:.8rem">
+    <strong>Aprovar</strong> abona o tempo (não desconta). <strong>Recusar</strong> mantém o desconto.
+  </p>
+</div>
+{% endif %}
 <div class="cartao">
   <span class="eyebrow">Painel <b>//</b> {{ data_hoje }}</span>
   <h1>Equipe <span class="gold">hoje</span></h1>
@@ -55,12 +88,10 @@
         <td>{{ a.nome }}</td>
         <td>{{ a.evento }} <span class="discreto">({{ a.detalhe }})</span>
           {% if a.motivo %}<br><span class="discreto">Motivo: “{{ a.motivo }}”</span>{% endif %}
+          {% if a.contestacao %}<br><span class="discreto">Contestação: “{{ a.contestacao }}”</span>{% endif %}
         </td>
         <td class="hora">{{ fmt_minutos(a.minutos) }}</td>
-        <td>
-          {% if a.abonado %}<span class="pill ativo">avisou / abonado</span>
-          {% else %}<span class="pill atraso">descontado</span>{% endif %}
-        </td>
+        <td>{{ situacao_pill(a) }}</td>
         <td>
           <form method="post" action="{{ url_for('abonar', reg_id=a.reg_id) }}">
             <input type="hidden" name="voltar" value="{{ url_for('admin') }}">

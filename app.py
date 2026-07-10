@@ -98,7 +98,9 @@ def init_db():
             tipo           TEXT NOT NULL,               -- entrada, saida_almoco, ...
             foto           TEXT,                        -- data URL (jpeg) ou NULL
             abonado        INTEGER NOT NULL DEFAULT 0,  -- 1 = atraso avisado/autorizado
-            motivo         TEXT                         -- justificativa do aviso
+            motivo         TEXT,                        -- justificativa do aviso
+            contestacao        TEXT,                    -- justificativa enviada depois
+            contestacao_status TEXT                     -- 'pendente' / 'aprovada' / 'recusada'
         );
         CREATE INDEX IF NOT EXISTS idx_registros_func_dia
             ON registros (funcionario_id, dia);
@@ -120,6 +122,8 @@ def init_db():
         ("foto", "ALTER TABLE registros ADD COLUMN foto TEXT"),
         ("abonado", "ALTER TABLE registros ADD COLUMN abonado INTEGER NOT NULL DEFAULT 0"),
         ("motivo", "ALTER TABLE registros ADD COLUMN motivo TEXT"),
+        ("contestacao", "ALTER TABLE registros ADD COLUMN contestacao TEXT"),
+        ("contestacao_status", "ALTER TABLE registros ADD COLUMN contestacao_status TEXT"),
     ):
         if col not in cols_r:
             db.execute(ddl)
@@ -204,6 +208,8 @@ def atrasos_do_dia(regs, func):
                 "detalhe": f"previsto {func['hora_entrada']}, bateu {por['entrada']['horario'][:5]}",
                 "minutos": m, "abonado": por["entrada"]["abonado"],
                 "motivo": por["entrada"]["motivo"],
+                "contestacao": por["entrada"]["contestacao"],
+                "contestacao_status": por["entrada"]["contestacao_status"],
             })
     for saida_t, volta_t, limite, nome in (
         ("saida_almoco", "volta_almoco", func["almoco_min"], "Almoço"),
@@ -218,6 +224,8 @@ def atrasos_do_dia(regs, func):
                     "detalhe": f"pausa de {fmt_minutos(dur)} (permitido {fmt_minutos(limite)})",
                     "minutos": m, "abonado": por[volta_t]["abonado"],
                     "motivo": por[volta_t]["motivo"],
+                    "contestacao": por[volta_t]["contestacao"],
+                    "contestacao_status": por[volta_t]["contestacao_status"],
                 })
     return atrasos
 
@@ -429,6 +437,33 @@ def resumo_dia():
     )
 
 
+@app.route("/contestar/<int:reg_id>", methods=["POST"])
+def contestar(reg_id):
+    func = func_logado()
+    if func is None:
+        return redirect(url_for("index"))
+    db = get_db()
+    reg = db.execute(
+        "SELECT * FROM registros WHERE id = ? AND funcionario_id = ?",
+        (reg_id, func["id"]),
+    ).fetchone()
+    if reg is None:
+        return redirect(url_for("painel"))
+    texto = request.form.get("contestacao", "").strip()
+    if not texto:
+        flash("Escreva o motivo da contestação.", "erro")
+    elif reg["abonado"] or reg["contestacao_status"] == "aprovada":
+        flash("Este registro já está abonado.", "ok")
+    else:
+        db.execute(
+            "UPDATE registros SET contestacao = ?, contestacao_status = 'pendente' WHERE id = ?",
+            (texto, reg_id),
+        )
+        db.commit()
+        flash("Contestação enviada ao gestor. Aguarde a análise.", "ok")
+    return redirect(request.form.get("voltar") or url_for("resumo_dia"))
+
+
 @app.route("/meu-espelho")
 def meu_espelho():
     func = func_logado()
@@ -494,12 +529,33 @@ def admin():
         for a in atrasos:
             atrasos_hoje.append({**a, "nome": f["nome"]})
 
+    # contestações pendentes (de qualquer dia)
+    contestacoes = []
+    nomes = {f["id"]: f["nome"] for f in funcionarios}
+    pend = db.execute(
+        "SELECT DISTINCT funcionario_id, dia FROM registros WHERE contestacao_status = 'pendente'"
+    ).fetchall()
+    for p in pend:
+        f = db.execute("SELECT * FROM funcionarios WHERE id = ?", (p["funcionario_id"],)).fetchone()
+        if f is None:
+            continue
+        regs = carrega_dia(db, f["id"], p["dia"])
+        por_id = {r["id"]: r for r in regs}
+        for a in atrasos_do_dia(regs, f):
+            if a["contestacao_status"] == "pendente":
+                contestacoes.append({
+                    **a,
+                    "nome": f["nome"],
+                    "data": date.fromisoformat(p["dia"]).strftime("%d/%m/%Y"),
+                })
+
     return render_template(
         "admin.html",
         funcionarios=funcionarios,
         gestor=gestor,
         hoje=hoje,
         atrasos_hoje=atrasos_hoje,
+        contestacoes=contestacoes,
         data_hoje=now.strftime("%d/%m/%Y"),
         fmt_minutos=fmt_minutos,
     )
@@ -616,6 +672,25 @@ def abonar(reg_id):
         return redirect(url_for("admin"))
     db = get_db()
     db.execute("UPDATE registros SET abonado = 1 - abonado WHERE id = ?", (reg_id,))
+    db.commit()
+    return redirect(request.form.get("voltar") or url_for("admin"))
+
+
+@app.route("/admin/contestacao/<int:reg_id>/<acao>", methods=["POST"])
+def responder_contestacao(reg_id, acao):
+    if not admin_logado():
+        return redirect(url_for("admin"))
+    db = get_db()
+    if acao == "aprovar":
+        db.execute(
+            "UPDATE registros SET abonado = 1, contestacao_status = 'aprovada' WHERE id = ?",
+            (reg_id,),
+        )
+    elif acao == "recusar":
+        db.execute(
+            "UPDATE registros SET abonado = 0, contestacao_status = 'recusada' WHERE id = ?",
+            (reg_id,),
+        )
     db.commit()
     return redirect(request.form.get("voltar") or url_for("admin"))
 

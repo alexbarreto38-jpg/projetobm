@@ -1,0 +1,31 @@
+{% macro situacao_pill(a) %}
+  {%- if a.abonado -%}
+    <span class="pill ativo">abonado</span>
+  {%- elif a.contestacao_status == 'pendente' -%}
+    <span class="pill pausa">contestação em análise</span>
+  {%- elif a.contestacao_status == 'recusada' -%}
+    <span class="pill atraso">descontado</span> <span class="discreto">(recusada)</span>
+  {%- else -%}
+    <span class="pill atraso">descontado</span>
+  {%- endif -%}
+{% endmacro %}
+
+{# botão de contestar — só para o colaborador, em atraso ainda descontado #}
+{% macro contestar_form(a) %}
+  {% if not a.abonado and a.contestacao_status != 'pendente' and a.contestacao_status != 'aprovada' %}
+  <details class="contestar">
+    <summary>Contestar</summary>
+    <form method="post" action="{{ url_for('contestar', reg_id=a.reg_id) }}" style="margin-top:.6rem">
+      <input type="hidden" name="voltar" value="{{ request.full_path }}">
+      <textarea name="contestacao" rows="2" maxlength="240" required
+                placeholder="Ex.: passei mal e precisei ir ao médico"
+                style="width:100%;max-width:340px;padding:.6rem .75rem;font-size:.92rem;font-family:var(--body);
+                       background:var(--ink2);color:var(--ivory);border:1px solid var(--line-soft);
+                       border-radius:10px;resize:vertical"></textarea>
+      <div><button class="secundario" style="padding:.35rem .9rem;font-size:.8rem;margin-top:.4rem">Enviar contestação</button></div>
+    </form>
+  </details>
+  {% elif a.contestacao_status == 'pendente' %}
+  <span class="discreto" style="font-size:.82rem">Enviada — aguardando o gestor.</span>
+  {% endif %}
+{% endmacro %}
