@@ -41,7 +41,9 @@
     <tbody>
       {% for a in l.atrasos %}
       <tr>
-        <td>{{ a.evento }} <span class="discreto">({{ a.detalhe }})</span></td>
+        <td>{{ a.evento }} <span class="discreto">({{ a.detalhe }})</span>
+          {% if a.motivo %}<br><span class="discreto">Motivo: “{{ a.motivo }}”</span>{% endif %}
+        </td>
         <td class="hora">{{ fmt_minutos(a.minutos) }}</td>
         <td>
           {% if a.abonado %}<span class="pill ativo">abonado</span>

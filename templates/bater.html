@@ -22,11 +22,21 @@
     {% if pode_atrasar %}
     <label class="chk" style="display:flex;align-items:center;gap:.6rem;justify-content:center;
            font-family:var(--body);text-transform:none;letter-spacing:0;font-size:.92rem;
-           color:var(--zinc);margin-bottom:1.2rem;cursor:pointer">
+           color:var(--zinc);margin-bottom:1rem;cursor:pointer">
       <input type="checkbox" name="avisado" value="1"
+             onchange="document.getElementById('motivo-box').style.display=this.checked?'block':'none';
+                       if(this.checked)document.getElementById('motivo').focus()"
              style="width:18px;height:18px;accent-color:var(--gold)">
       Avisei o gestor sobre o atraso e fui autorizado(a)
     </label>
+    <div id="motivo-box" style="display:none;max-width:380px;margin:0 auto 1.2rem;text-align:left">
+      <label for="motivo">Qual foi o motivo?</label>
+      <textarea id="motivo" name="motivo" rows="2" maxlength="200"
+                placeholder="Ex.: consulta médica, avisei ontem"
+                style="width:100%;padding:.65rem .8rem;font-size:.95rem;font-family:var(--body);
+                       background:var(--ink2);color:var(--ivory);border:1px solid var(--line-soft);
+                       border-radius:12px;resize:vertical"></textarea>
+    </div>
     {% endif %}
     <button type="submit" style="font-size:1.1rem;padding:1rem 2.8rem">
       Bater ponto agora

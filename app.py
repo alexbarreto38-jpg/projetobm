@@ -96,7 +96,8 @@ def init_db():
             horario        TEXT NOT NULL,               -- HH:MM:SS
             tipo           TEXT NOT NULL,               -- entrada, saida_almoco, ...
             foto           TEXT,                        -- data URL (jpeg) ou NULL
-            abonado        INTEGER NOT NULL DEFAULT 0   -- 1 = atraso avisado/autorizado
+            abonado        INTEGER NOT NULL DEFAULT 0,  -- 1 = atraso avisado/autorizado
+            motivo         TEXT                         -- justificativa do aviso
         );
         CREATE INDEX IF NOT EXISTS idx_registros_func_dia
             ON registros (funcionario_id, dia);
@@ -116,6 +117,7 @@ def init_db():
         ("tipo", "ALTER TABLE registros ADD COLUMN tipo TEXT NOT NULL DEFAULT 'entrada'"),
         ("foto", "ALTER TABLE registros ADD COLUMN foto TEXT"),
         ("abonado", "ALTER TABLE registros ADD COLUMN abonado INTEGER NOT NULL DEFAULT 0"),
+        ("motivo", "ALTER TABLE registros ADD COLUMN motivo TEXT"),
     ):
         if col not in cols_r:
             db.execute(ddl)
@@ -184,6 +186,7 @@ def atrasos_do_dia(regs, func):
                 "reg_id": por["entrada"]["id"], "evento": "Entrada",
                 "detalhe": f"previsto {func['hora_entrada']}, bateu {por['entrada']['horario'][:5]}",
                 "minutos": m, "abonado": por["entrada"]["abonado"],
+                "motivo": por["entrada"]["motivo"],
             })
     for saida_t, volta_t, limite, nome in (
         ("saida_almoco", "volta_almoco", func["almoco_min"], "Almoço"),
@@ -197,6 +200,7 @@ def atrasos_do_dia(regs, func):
                     "reg_id": por[volta_t]["id"], "evento": nome,
                     "detalhe": f"pausa de {fmt_minutos(dur)} (permitido {fmt_minutos(limite)})",
                     "minutos": m, "abonado": por[volta_t]["abonado"],
+                    "motivo": por[volta_t]["motivo"],
                 })
     return atrasos
 
@@ -343,16 +347,18 @@ def bater(tipo):
 
     foto = request.form.get("foto") or None
     avisado = 1 if request.form.get("avisado") else 0
+    motivo = request.form.get("motivo", "").strip() or None if avisado else None
     # aviso dado na saída da pausa vale para a volta (onde o atraso é calculado)
     if not avisado and tipo in ("volta_almoco", "volta_cafe"):
         par = {"volta_almoco": "saida_almoco", "volta_cafe": "saida_cafe"}[tipo]
-        if any(r["tipo"] == par and r["abonado"] for r in regs):
-            avisado = 1
+        for r in regs:
+            if r["tipo"] == par and r["abonado"]:
+                avisado, motivo = 1, r["motivo"]
     horario = now.strftime("%H:%M:%S")
     db.execute(
-        "INSERT INTO registros (funcionario_id, dia, horario, tipo, foto, abonado)"
-        " VALUES (?, ?, ?, ?, ?, ?)",
-        (func["id"], dia, horario, tipo, foto, avisado),
+        "INSERT INTO registros (funcionario_id, dia, horario, tipo, foto, abonado, motivo)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (func["id"], dia, horario, tipo, foto, avisado, motivo),
     )
     db.commit()
 
