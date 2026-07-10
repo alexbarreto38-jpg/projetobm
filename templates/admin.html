@@ -87,12 +87,11 @@
   <h1>Colaboradores</h1>
   {% if funcionarios %}
   <table style="margin-top:.6rem">
-    <thead><tr><th>Nome</th><th>PIN</th><th>Status</th><th>Entrada / Almoço / Café</th><th></th><th></th></tr></thead>
+    <thead><tr><th>Nome</th><th>Status</th><th>Senha / Entrada / Almoço / Café</th><th></th><th></th></tr></thead>
     <tbody>
       {% for f in funcionarios %}
       <tr>
         <td>{{ f.nome }}<br><a href="{{ url_for('espelho', func_id=f.id) }}" class="gold" style="font-size:.85rem">Espelho de ponto</a></td>
-        <td class="hora">{{ f.pin }}</td>
         <td>
           {% if f.ativo %}<span class="pill ativo">ativo</span>
           {% else %}<span class="pill inativo">inativo</span>{% endif %}
@@ -100,9 +99,11 @@
         <td>
           <form method="post" action="{{ url_for('config_funcionario', func_id=f.id) }}"
                 style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <input type="text" name="pin" value="{{ f.pin }}" class="mini" style="width:74px"
+                   inputmode="numeric" pattern="\d{4,6}" title="PIN de acesso (4 a 6 dígitos)">
             <input type="time" name="hora_entrada" value="{{ f.hora_entrada }}" class="mini">
-            <input type="text" name="almoco_min" value="{{ f.almoco_min }}" class="mini" style="width:56px" title="Minutos de almoço">
-            <input type="text" name="cafe_min" value="{{ f.cafe_min }}" class="mini" style="width:56px" title="Minutos de café">
+            <input type="text" name="almoco_min" value="{{ f.almoco_min }}" class="mini" style="width:52px" title="Minutos de almoço">
+            <input type="text" name="cafe_min" value="{{ f.cafe_min }}" class="mini" style="width:52px" title="Minutos de café">
             <button class="secundario" style="padding:.3rem .7rem;font-size:.78rem">Salvar</button>
           </form>
         </td>
@@ -118,8 +119,21 @@
     </tbody>
   </table>
   <p class="discreto" style="margin-top:.8rem">
-    Entrada = horário previsto; Almoço e Café = minutos permitidos de pausa.
+    O primeiro campo é a <strong>senha (PIN)</strong> — altere e clique em Salvar para
+    definir a senha do colaborador. Entrada = horário previsto; Almoço e Café = minutos de pausa.
   </p>
+  {% if gestor %}
+  <div style="margin-top:1.4rem;padding-top:1.2rem;border-top:1px solid var(--line-soft)">
+    <h2 style="font-size:1rem">Minha senha de acesso ({{ gestor.nome }})</h2>
+    <form method="post" action="{{ url_for('minha_senha') }}"
+          style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:.5rem">
+      <input type="text" name="pin" value="{{ gestor.pin }}" class="mini" style="width:90px"
+             inputmode="numeric" pattern="\d{4,6}" title="Seu PIN de gestor">
+      <button class="secundario" style="padding:.35rem .9rem;font-size:.8rem">Salvar minha senha</button>
+      <span class="discreto">É o PIN que abre o seu painel na tela inicial.</span>
+    </form>
+  </div>
+  {% endif %}
   {% else %}
   <p class="discreto">Nenhum colaborador cadastrado ainda.</p>
   {% endif %}

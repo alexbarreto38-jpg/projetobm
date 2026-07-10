@@ -85,6 +85,7 @@ def init_db():
             nome         TEXT NOT NULL,
             pin          TEXT NOT NULL UNIQUE,
             ativo        INTEGER NOT NULL DEFAULT 1,
+            papel        TEXT NOT NULL DEFAULT 'colaborador',  -- 'gestor' ou 'colaborador'
             hora_entrada TEXT NOT NULL DEFAULT '08:00',
             almoco_min   INTEGER NOT NULL DEFAULT 60,
             cafe_min     INTEGER NOT NULL DEFAULT 15
@@ -106,6 +107,7 @@ def init_db():
     # migração de bancos criados em versões anteriores
     cols_f = {r[1] for r in db.execute("PRAGMA table_info(funcionarios)")}
     for col, ddl in (
+        ("papel", "ALTER TABLE funcionarios ADD COLUMN papel TEXT NOT NULL DEFAULT 'colaborador'"),
         ("hora_entrada", "ALTER TABLE funcionarios ADD COLUMN hora_entrada TEXT NOT NULL DEFAULT '08:00'"),
         ("almoco_min", "ALTER TABLE funcionarios ADD COLUMN almoco_min INTEGER NOT NULL DEFAULT 60"),
         ("cafe_min", "ALTER TABLE funcionarios ADD COLUMN cafe_min INTEGER NOT NULL DEFAULT 15"),
@@ -121,6 +123,21 @@ def init_db():
     ):
         if col not in cols_r:
             db.execute(ddl)
+
+    # garante que exista um gestor (o painel de administração)
+    tem_gestor = db.execute(
+        "SELECT COUNT(*) FROM funcionarios WHERE papel = 'gestor'"
+    ).fetchone()[0]
+    if not tem_gestor:
+        usados = {r[0] for r in db.execute("SELECT pin FROM funcionarios")}
+        pin = os.environ.get("PONTO_GESTOR_PIN", "1000")
+        if pin in usados or not (pin.isdigit() and 4 <= len(pin) <= 6):
+            pin = next(str(i) for i in range(1000, 10000) if str(i) not in usados)
+        db.execute(
+            "INSERT INTO funcionarios (nome, pin, papel, ativo) VALUES (?, ?, 'gestor', 1)",
+            (os.environ.get("PONTO_GESTOR_NOME", "Alex"), pin),
+        )
+
     db.commit()
     db.close()
 
@@ -263,21 +280,35 @@ def func_logado():
 
 @app.route("/")
 def index():
-    if func_logado():
-        return redirect(url_for("painel"))
-    return render_template("index.html")
+    db = get_db()
+    pessoas = db.execute(
+        "SELECT id, nome, papel FROM funcionarios WHERE ativo = 1"
+        " ORDER BY CASE papel WHEN 'gestor' THEN 0 ELSE 1 END, nome"
+    ).fetchall()
+    return render_template("index.html", pessoas=pessoas)
 
 
-@app.route("/entrar", methods=["POST"])
-def entrar():
-    pin = request.form.get("pin", "").strip()
-    func = get_db().execute(
-        "SELECT * FROM funcionarios WHERE pin = ? AND ativo = 1", (pin,)
+@app.route("/acessar/<int:func_id>", methods=["GET", "POST"])
+def acessar(func_id):
+    db = get_db()
+    pessoa = db.execute(
+        "SELECT * FROM funcionarios WHERE id = ? AND ativo = 1", (func_id,)
     ).fetchone()
-    if func is None:
-        flash("PIN não encontrado. Verifique com o gestor.", "erro")
+    if pessoa is None:
         return redirect(url_for("index"))
-    session["func_id"] = func["id"]
+
+    if request.method == "GET":
+        return render_template("acessar.html", pessoa=pessoa)
+
+    pin = request.form.get("pin", "").strip()
+    if pin != pessoa["pin"]:
+        flash("PIN incorreto. Tente novamente.", "erro")
+        return redirect(url_for("acessar", func_id=func_id))
+
+    if pessoa["papel"] == "gestor":
+        session["admin"] = True
+        return redirect(url_for("admin"))
+    session["func_id"] = pessoa["id"]
     return redirect(url_for("painel"))
 
 
@@ -432,8 +463,11 @@ def admin():
 
     db = get_db()
     funcionarios = db.execute(
-        "SELECT * FROM funcionarios ORDER BY ativo DESC, nome"
+        "SELECT * FROM funcionarios WHERE papel = 'colaborador' ORDER BY ativo DESC, nome"
     ).fetchall()
+    gestor = db.execute(
+        "SELECT * FROM funcionarios WHERE papel = 'gestor' ORDER BY id LIMIT 1"
+    ).fetchone()
 
     now = agora()
     dia = now.strftime("%Y-%m-%d")
@@ -463,6 +497,7 @@ def admin():
     return render_template(
         "admin.html",
         funcionarios=funcionarios,
+        gestor=gestor,
         hoje=hoje,
         atrasos_hoje=atrasos_hoje,
         data_hoje=now.strftime("%d/%m/%Y"),
@@ -504,12 +539,28 @@ def novo_funcionario():
     return redirect(url_for("admin"))
 
 
+def _pin_disponivel(db, pin, ignora_id):
+    dono = db.execute(
+        "SELECT id FROM funcionarios WHERE pin = ? AND id <> ?", (pin, ignora_id)
+    ).fetchone()
+    return dono is None
+
+
 @app.route("/admin/funcionarios/<int:func_id>/config", methods=["POST"])
 def config_funcionario(func_id):
     if not admin_logado():
         return redirect(url_for("admin"))
+    db = get_db()
+    pin = request.form.get("pin", "").strip()
+    if pin:
+        if not (pin.isdigit() and 4 <= len(pin) <= 6):
+            flash("O PIN deve ter de 4 a 6 dígitos.", "erro")
+            return redirect(url_for("admin"))
+        if not _pin_disponivel(db, pin, func_id):
+            flash("Este PIN já está em uso — escolha outro.", "erro")
+            return redirect(url_for("admin"))
     try:
-        get_db().execute(
+        db.execute(
             "UPDATE funcionarios SET hora_entrada = ?, almoco_min = ?, cafe_min = ? WHERE id = ?",
             (
                 request.form.get("hora_entrada", "08:00"),
@@ -518,10 +569,34 @@ def config_funcionario(func_id):
                 func_id,
             ),
         )
-        get_db().commit()
-        flash("Horários atualizados.", "ok")
+        if pin:
+            db.execute("UPDATE funcionarios SET pin = ? WHERE id = ?", (pin, func_id))
+        db.commit()
+        flash("Dados do colaborador atualizados." if pin else "Horários atualizados.", "ok")
     except ValueError:
         flash("Minutos de almoço e café devem ser números.", "erro")
+    return redirect(url_for("admin"))
+
+
+@app.route("/admin/minha-senha", methods=["POST"])
+def minha_senha():
+    if not admin_logado():
+        return redirect(url_for("admin"))
+    db = get_db()
+    gestor = db.execute(
+        "SELECT * FROM funcionarios WHERE papel = 'gestor' ORDER BY id LIMIT 1"
+    ).fetchone()
+    pin = request.form.get("pin", "").strip()
+    if gestor is None:
+        return redirect(url_for("admin"))
+    if not (pin.isdigit() and 4 <= len(pin) <= 6):
+        flash("O PIN deve ter de 4 a 6 dígitos.", "erro")
+    elif not _pin_disponivel(db, pin, gestor["id"]):
+        flash("Este PIN já está em uso — escolha outro.", "erro")
+    else:
+        db.execute("UPDATE funcionarios SET pin = ? WHERE id = ?", (pin, gestor["id"]))
+        db.commit()
+        flash("Sua senha de acesso foi atualizada.", "ok")
     return redirect(url_for("admin"))
 
 
