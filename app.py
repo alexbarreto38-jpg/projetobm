@@ -337,12 +337,17 @@ def bater(tipo):
             func=func,
             tipo=tipo,
             rotulo=ROTULOS[tipo],
-            pode_atrasar=tipo in TIPOS_COM_ATRASO,
+            pode_atrasar=True,
             hora_prevista=func["hora_entrada"] if tipo == "entrada" else None,
         )
 
     foto = request.form.get("foto") or None
     avisado = 1 if request.form.get("avisado") else 0
+    # aviso dado na saída da pausa vale para a volta (onde o atraso é calculado)
+    if not avisado and tipo in ("volta_almoco", "volta_cafe"):
+        par = {"volta_almoco": "saida_almoco", "volta_cafe": "saida_cafe"}[tipo]
+        if any(r["tipo"] == par and r["abonado"] for r in regs):
+            avisado = 1
     horario = now.strftime("%H:%M:%S")
     db.execute(
         "INSERT INTO registros (funcionario_id, dia, horario, tipo, foto, abonado)"
