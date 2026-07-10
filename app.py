@@ -437,11 +437,12 @@ def admin():
         ultimo = regs[-1]["tipo"] if regs else None
         classe, rotulo = STATUS[ultimo]
         atrasos = atrasos_do_dia(regs, f)
+        feitos = {r["tipo"]: r["horario"][:5] for r in regs}
         hoje.append({
             "nome": f["nome"],
             "classe": classe,
             "rotulo": rotulo,
-            "batidas": " · ".join(r["horario"][:5] for r in regs) or "—",
+            "etapas": [feitos.get(t) for t in ORDEM],
             "horas": fmt_segundos(seg),
             "perdido": sum(a["minutos"] for a in atrasos if not a["abonado"]),
         })

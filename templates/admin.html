@@ -5,8 +5,14 @@
   <span class="eyebrow">Painel <b>//</b> {{ data_hoje }}</span>
   <h1>Equipe <span class="gold">hoje</span></h1>
   {% if hoje %}
-  <table style="margin-top:.6rem">
-    <thead><tr><th>Colaborador</th><th>Situação</th><th>Batidas</th><th>Horas</th><th>Perdido</th></tr></thead>
+  <div style="overflow-x:auto">
+  <table style="margin-top:.6rem;min-width:640px">
+    <thead><tr>
+      <th>Colaborador</th><th>Situação</th>
+      <th>Entrada</th><th>Almoço</th><th>Volta almoço</th>
+      <th>Café</th><th>Volta café</th><th>Saída</th>
+      <th>Horas</th><th>Perdido</th>
+    </tr></thead>
     <tbody>
       {% for h in hoje %}
       <tr>
@@ -17,7 +23,9 @@
           {% elif h.classe == 'fora' %}<span class="pill inativo">{{ h.rotulo }}</span>
           {% else %}<span class="discreto">{{ h.rotulo }}</span>{% endif %}
         </td>
-        <td class="hora">{{ h.batidas }}</td>
+        {% for hora in h.etapas %}
+        <td class="hora">{% if hora %}{{ hora }}{% else %}<span class="discreto">—</span>{% endif %}</td>
+        {% endfor %}
         <td class="hora">{{ h.horas }}</td>
         <td class="hora" style="color:{% if h.perdido %}#f0a8a8{% else %}var(--zinc-dim){% endif %}">
           {{ fmt_minutos(h.perdido) if h.perdido else '—' }}
@@ -26,6 +34,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
   <p class="discreto" style="margin-top:.8rem">
     Quem está com a jornada em aberto tem as horas contadas até agora.
   </p>
@@ -140,6 +149,7 @@
 </div>
 
 <style>
+  main{max-width:1080px}
   input.mini{margin-bottom:0;padding:.35rem .5rem;font-size:.85rem;border-radius:8px}
   input[type=time]{color-scheme:dark}
 </style>
