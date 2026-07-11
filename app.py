@@ -645,11 +645,14 @@ def admin():
 
     now = agora()
     dia = now.strftime("%Y-%m-%d")
-    hoje, atrasos_hoje = [], []
+    hoje, atrasos_hoje, faltas_dia = [], [], []
     for f in funcionarios:
         if not f["ativo"]:
             continue
         regs = carrega_dia(db, f["id"], dia)
+        if not regs:
+            faltas_dia.append({"id": f["id"], "nome": f["nome"],
+                               "justificativa": justificativa_do_dia(db, f["id"], dia)})
         seg, aberto = trabalhado_do_dia(regs)
         if aberto is not None:
             seg += _seg(now.strftime("%H:%M:%S")) - _seg(aberto)
@@ -707,6 +710,7 @@ def admin():
         gestor=gestor,
         hoje=hoje,
         atrasos_hoje=atrasos_hoje,
+        faltas_dia=faltas_dia,
         contestacoes=contestacoes,
         faltas_pend=faltas_pend,
         data_hoje=now.strftime("%d/%m/%Y"),

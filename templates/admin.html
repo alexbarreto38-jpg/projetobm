@@ -164,6 +164,38 @@
 </div>
 
 <div class="cartao">
+  <span class="eyebrow">Faltas <b>//</b> hoje</span>
+  <h2 style="margin-top:.3rem">Faltas do dia</h2>
+  {% if faltas_dia %}
+  <table>
+    <thead><tr><th>Colaborador</th><th>Situação</th></tr></thead>
+    <tbody>
+      {% for x in faltas_dia %}
+      <tr>
+        <td><a href="{{ url_for('admin_calendario', func_id=x.id) }}" class="gold">{{ x.nome }}</a></td>
+        <td>
+          {% if x.justificativa %}
+            {% if x.justificativa.status == 'aprovada' %}<span class="pill ativo">falta abonada</span>
+            {% elif x.justificativa.status == 'recusada' %}<span class="pill atraso">falta (recusada)</span>
+            {% else %}<span class="pill pausa">justificou — em análise</span>{% endif %}
+            <br><span class="discreto">“{{ x.justificativa.texto }}”</span>
+          {% else %}
+            <span class="pill atraso">sem registro</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="discreto" style="margin-top:.8rem">
+    Colaboradores ativos que ainda não bateram ponto hoje. Clique no nome para ver o calendário.
+  </p>
+  {% else %}
+  <p class="discreto">✦ Todos registraram ponto hoje.</p>
+  {% endif %}
+</div>
+
+<div class="cartao">
   <span class="eyebrow">Gestão <b>//</b> equipe</span>
   <h1>Colaboradores</h1>
   {% if funcionarios %}
