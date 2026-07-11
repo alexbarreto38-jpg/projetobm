@@ -1,3 +1,10 @@
+{% macro abas(atual, espelho_url, calendario_url) %}
+<div class="abas">
+  <a href="{{ espelho_url }}" class="{{ 'ativa' if atual == 'espelho' }}">Espelho</a>
+  <a href="{{ calendario_url }}" class="{{ 'ativa' if atual == 'calendario' }}">Calendário</a>
+</div>
+{% endmacro %}
+
 {% macro situacao_pill(a) %}
   {%- if a.abonado -%}
     <span class="pill ativo">abonado</span>

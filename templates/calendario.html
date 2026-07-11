@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% from "_macros.html" import abas %}
+{% block titulo %}Calendário — Bater Ponto da WISE{% endblock %}
+{% block conteudo %}
+{% if admin %}
+  {{ abas('calendario', url_for('espelho', func_id=func.id, mes=mes), url_for('admin_calendario', func_id=func.id, mes=mes)) }}
+  {% set base_url = url_for('admin_calendario', func_id=func.id) %}
+{% else %}
+  {{ abas('calendario', url_for('meu_espelho', mes=mes), url_for('meu_calendario', mes=mes)) }}
+  {% set base_url = url_for('meu_calendario') %}
+{% endif %}
+
+<div class="cartao">
+  <span class="eyebrow">Calendário <b>//</b> {{ func.nome }}</span>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin:.4rem 0 1rem">
+    <a href="{{ base_url }}?mes={{ mes_ant }}"><button class="secundario" style="padding:.4rem .8rem">←</button></a>
+    <h2 style="margin:0">{{ mes[5:7] }}/{{ mes[:4] }}</h2>
+    <a href="{{ base_url }}?mes={{ mes_prox }}"><button class="secundario" style="padding:.4rem .8rem">→</button></a>
+  </div>
+  <div class="cal-grade">
+    {% for d in ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'] %}<div class="cal-dow">{{ d }}</div>{% endfor %}
+    {% for c in celulas %}
+      {% if c is none %}<div class="cal-vazio"></div>
+      {% else %}
+      <a class="cal-dia {{ c.classe }}{{ ' sel' if c.dia == dia_sel }}{{ ' hoje' if c.dia == hoje_iso }}"
+         href="{{ base_url }}?mes={{ mes }}&dia={{ c.dia }}">
+        <span class="cal-num">{{ c.num }}</span>
+        {% if c.classe == 'trabalhado' %}<span class="cal-h">{{ c.horas }}</span>
+        {% elif c.rotulo %}<span class="cal-tag">{{ c.rotulo }}</span>{% endif %}
+      </a>
+      {% endif %}
+    {% endfor %}
+  </div>
+  <div class="cal-legenda">
+    <span><i class="lg trabalhado"></i> Trabalhado</span>
+    <span><i class="lg falta"></i> Falta</span>
+    <span><i class="lg pendente"></i> Em análise</span>
+    <span><i class="lg abonada"></i> Abonada</span>
+  </div>
+</div>
+
+{% if detalhe %}
+<div class="cartao">
+  <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:.4rem">
+    <h2 style="margin:0">{{ detalhe.data }}</h2>
+    {% set cl = detalhe.status.classe %}
+    <span class="pill {{ 'ativo' if cl in ['trabalhado','abonada'] else 'atraso' if cl == 'falta' else 'pausa' if cl == 'pendente' else 'inativo' }}">
+      {{ detalhe.status.rotulo or cl }}
+    </span>
+  </div>
+  {% if detalhe.batidas %}
+  <div class="batidas-linha" style="margin-top:.7rem">
+    {% for b in detalhe.batidas %}<span class="batida-chip">{{ b.rotulo }} <span class="hora">{{ b.hora }}</span></span>{% endfor %}
+  </div>
+  {% else %}
+  <p class="discreto" style="margin-top:.7rem">Nenhuma batida neste dia.</p>
+  {% endif %}
+
+  {% if detalhe.justificativa %}
+  <div style="margin-top:.9rem">
+    <p><strong>Justificativa da falta:</strong>
+      {% if detalhe.justificativa.status == 'aprovada' %}<span class="pill ativo">abonada</span>
+      {% elif detalhe.justificativa.status == 'recusada' %}<span class="pill atraso">recusada</span>
+      {% else %}<span class="pill pausa">em análise</span>{% endif %}
+    </p>
+    <p class="discreto" style="margin-top:.3rem">“{{ detalhe.justificativa.texto }}”</p>
+    {% if admin and detalhe.justificativa.status == 'pendente' %}
+    <div style="margin-top:.6rem;display:flex;gap:8px;flex-wrap:wrap">
+      <form method="post" action="{{ url_for('responder_justificativa', jid=detalhe.justificativa.id, acao='aprovar') }}">
+        <input type="hidden" name="voltar" value="{{ request.full_path }}">
+        <button style="padding:.35rem .9rem;font-size:.8rem">Aprovar</button>
+      </form>
+      <form method="post" action="{{ url_for('responder_justificativa', jid=detalhe.justificativa.id, acao='recusar') }}">
+        <input type="hidden" name="voltar" value="{{ request.full_path }}">
+        <button class="secundario" style="padding:.35rem .9rem;font-size:.8rem">Recusar</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+  {% elif not admin and not detalhe.tem_batida and not detalhe.futuro %}
+  <div style="margin-top:.9rem">
+    <form method="post" action="{{ url_for('justificar') }}">
+      <input type="hidden" name="dia" value="{{ detalhe.dia }}">
+      <label for="texto">Justificar esta falta</label>
+      <textarea id="texto" name="texto" rows="2" maxlength="240" required
+                placeholder="Ex.: passei mal, tive uma emergência..."
+                style="width:100%;max-width:360px;padding:.6rem .75rem;font-family:var(--body);font-size:.95rem;
+                       background:var(--ink2);color:var(--ivory);border:1px solid var(--line-soft);border-radius:10px;resize:vertical"></textarea>
+      <div><button type="submit" style="margin-top:.5rem">Enviar justificativa</button></div>
+    </form>
+  </div>
+  {% endif %}
+</div>
+{% else %}
+<div class="cartao"><p class="discreto">Toque em um dia para ver as batidas.</p></div>
+{% endif %}
+
+<a href="{{ voltar_url }}"><button class="secundario">← {{ 'Voltar' if admin else 'Sair' }}</button></a>
+{% endblock %}

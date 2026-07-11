@@ -34,6 +34,39 @@
   </p>
 </div>
 {% endif %}
+{% if faltas_pend %}
+<div class="cartao" style="border-color:var(--line)">
+  <span class="eyebrow">Faltas <b>//</b> aguardando você</span>
+  <h2 style="margin-top:.3rem">Justificativas de falta</h2>
+  <div style="overflow-x:auto">
+  <table style="margin-top:.6rem;min-width:520px">
+    <thead><tr><th>Colaborador</th><th>Dia</th><th>Motivo do colaborador</th><th></th></tr></thead>
+    <tbody>
+      {% for j in faltas_pend %}
+      <tr>
+        <td>{{ j.nome }}</td>
+        <td>{{ j.data }}</td>
+        <td>“{{ j.texto }}”</td>
+        <td style="white-space:nowrap">
+          <form method="post" action="{{ url_for('responder_justificativa', jid=j.id, acao='aprovar') }}" style="display:inline">
+            <input type="hidden" name="voltar" value="{{ url_for('admin') }}">
+            <button style="padding:.35rem .8rem;font-size:.78rem">Aprovar</button>
+          </form>
+          <form method="post" action="{{ url_for('responder_justificativa', jid=j.id, acao='recusar') }}" style="display:inline">
+            <input type="hidden" name="voltar" value="{{ url_for('admin') }}">
+            <button class="secundario" style="padding:.35rem .8rem;font-size:.78rem">Recusar</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="discreto" style="margin-top:.8rem">
+    Faltas justificadas pelo celular do colaborador — sem precisar vir ao escritório.
+  </p>
+</div>
+{% endif %}
 <div class="cartao">
   <span class="eyebrow">Painel <b>//</b> {{ data_hoje }}</span>
   <h1>Equipe <span class="gold">hoje</span></h1>

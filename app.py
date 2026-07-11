@@ -10,6 +10,7 @@ Variáveis de ambiente opcionais:
 
 import os
 import sqlite3
+import calendar as _calendar
 from datetime import datetime, date
 from zoneinfo import ZoneInfo
 
@@ -104,6 +105,15 @@ def init_db():
         );
         CREATE INDEX IF NOT EXISTS idx_registros_func_dia
             ON registros (funcionario_id, dia);
+        CREATE TABLE IF NOT EXISTS justificativas (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            funcionario_id INTEGER NOT NULL REFERENCES funcionarios(id),
+            dia            TEXT NOT NULL,               -- YYYY-MM-DD
+            texto          TEXT NOT NULL,
+            status         TEXT NOT NULL DEFAULT 'pendente'  -- pendente/aprovada/recusada
+        );
+        CREATE INDEX IF NOT EXISTS idx_just_func_dia
+            ON justificativas (funcionario_id, dia);
         """
     )
     # migração de bancos criados em versões anteriores
@@ -273,6 +283,68 @@ def monta_espelho(db, func, mes):
         "trabalhado": fmt_segundos(tot_seg),
         "perdido": tot_perdido,
         "abonado": tot_abonado,
+    }
+
+
+# ---------------------------------------------------------------- calendário / faltas
+
+def justificativa_do_dia(db, func_id, dia):
+    return db.execute(
+        "SELECT * FROM justificativas WHERE funcionario_id = ? AND dia = ? ORDER BY id DESC LIMIT 1",
+        (func_id, dia),
+    ).fetchone()
+
+
+def status_do_dia(db, func, dia):
+    """Situação de um dia para o calendário."""
+    regs = carrega_dia(db, func["id"], dia)
+    if regs:
+        seg, _ = trabalhado_do_dia(regs)
+        return {"classe": "trabalhado", "rotulo": "Trabalhado", "horas": fmt_segundos(seg)}
+    j = justificativa_do_dia(db, func["id"], dia)
+    if j and j["status"] == "aprovada":
+        return {"classe": "abonada", "rotulo": "Falta abonada", "horas": ""}
+    if j and j["status"] == "pendente":
+        return {"classe": "pendente", "rotulo": "Em análise", "horas": ""}
+    hoje = agora().strftime("%Y-%m-%d")
+    if dia > hoje:
+        return {"classe": "futuro", "rotulo": "", "horas": ""}
+    if date.fromisoformat(dia).weekday() >= 5:   # sábado/domingo
+        return {"classe": "fds", "rotulo": "—", "horas": ""}
+    return {"classe": "falta", "rotulo": "Falta", "horas": ""}
+
+
+def mes_delta(mes, delta):
+    ano, m = int(mes[:4]), int(mes[5:7]) + delta
+    if m < 1:
+        m, ano = 12, ano - 1
+    elif m > 12:
+        m, ano = 1, ano + 1
+    return f"{ano:04d}-{m:02d}"
+
+
+def monta_calendario(db, func, mes):
+    """Células do mês (com preenchimento inicial para alinhar Dom–Sáb)."""
+    ano, m = int(mes[:4]), int(mes[5:7])
+    n_dias = _calendar.monthrange(ano, m)[1]
+    offset = (date(ano, m, 1).weekday() + 1) % 7  # Dom=0
+    celulas = [None] * offset
+    for d in range(1, n_dias + 1):
+        dia = f"{ano:04d}-{m:02d}-{d:02d}"
+        celulas.append({"num": d, "dia": dia, **status_do_dia(db, func, dia)})
+    return celulas
+
+
+def detalhe_dia(db, func, dia):
+    regs = carrega_dia(db, func["id"], dia)
+    return {
+        "dia": dia,
+        "data": date.fromisoformat(dia).strftime("%d/%m/%Y"),
+        "status": status_do_dia(db, func, dia),
+        "batidas": [{"rotulo": ROTULOS.get(r["tipo"], r["tipo"]), "hora": r["horario"][:5]} for r in regs],
+        "tem_batida": bool(regs),
+        "justificativa": justificativa_do_dia(db, func["id"], dia),
+        "futuro": dia > agora().strftime("%Y-%m-%d"),
     }
 
 
@@ -503,6 +575,48 @@ def meu_espelho():
     )
 
 
+@app.route("/meu-calendario")
+def meu_calendario():
+    func = func_logado()
+    if func is None:
+        return redirect(url_for("meu"))
+    db = get_db()
+    mes = request.args.get("mes", agora().strftime("%Y-%m"))
+    dia_sel = request.args.get("dia")
+    return render_template(
+        "calendario.html", func=func, mes=mes,
+        celulas=monta_calendario(db, func, mes),
+        dia_sel=dia_sel, detalhe=detalhe_dia(db, func, dia_sel) if dia_sel else None,
+        admin=False, voltar_url=url_for("trocar", modo="colaborador"),
+        mes_ant=mes_delta(mes, -1), mes_prox=mes_delta(mes, 1),
+        hoje_iso=agora().strftime("%Y-%m-%d"),
+    )
+
+
+@app.route("/justificar", methods=["POST"])
+def justificar():
+    func = func_logado()
+    if func is None:
+        return redirect(url_for("meu"))
+    dia = request.form.get("dia", "")
+    texto = request.form.get("texto", "").strip()
+    db = get_db()
+    if not texto:
+        flash("Escreva o motivo da falta.", "erro")
+    elif carrega_dia(db, func["id"], dia):
+        flash("Este dia já tem registro de ponto.", "erro")
+    elif justificativa_do_dia(db, func["id"], dia):
+        flash("Você já enviou uma justificativa para este dia.", "ok")
+    else:
+        db.execute(
+            "INSERT INTO justificativas (funcionario_id, dia, texto) VALUES (?, ?, ?)",
+            (func["id"], dia, texto),
+        )
+        db.commit()
+        flash("Justificativa enviada ao gestor. Aguarde a análise.", "ok")
+    return redirect(url_for("meu_calendario", mes=dia[:7], dia=dia))
+
+
 # ---------------------------------------------------------------- área do gestor
 
 def admin_logado():
@@ -574,6 +688,18 @@ def admin():
                     "data": date.fromisoformat(p["dia"]).strftime("%d/%m/%Y"),
                 })
 
+    # justificativas de falta pendentes
+    faltas_pend = db.execute(
+        "SELECT j.id, j.dia, j.texto, f.nome FROM justificativas j"
+        " JOIN funcionarios f ON f.id = j.funcionario_id"
+        " WHERE j.status = 'pendente' ORDER BY j.dia"
+    ).fetchall()
+    faltas_pend = [
+        {"id": j["id"], "texto": j["texto"], "nome": j["nome"],
+         "data": date.fromisoformat(j["dia"]).strftime("%d/%m/%Y")}
+        for j in faltas_pend
+    ]
+
     return render_template(
         "admin.html",
         funcionarios=funcionarios,
@@ -581,6 +707,7 @@ def admin():
         hoje=hoje,
         atrasos_hoje=atrasos_hoje,
         contestacoes=contestacoes,
+        faltas_pend=faltas_pend,
         data_hoje=now.strftime("%d/%m/%Y"),
         fmt_minutos=fmt_minutos,
     )
@@ -718,6 +845,37 @@ def responder_contestacao(reg_id, acao):
         )
     db.commit()
     return redirect(request.form.get("voltar") or url_for("admin"))
+
+
+@app.route("/admin/justificativa/<int:jid>/<acao>", methods=["POST"])
+def responder_justificativa(jid, acao):
+    if not admin_logado():
+        return redirect(url_for("admin"))
+    db = get_db()
+    novo = "aprovada" if acao == "aprovar" else "recusada"
+    db.execute("UPDATE justificativas SET status = ? WHERE id = ?", (novo, jid))
+    db.commit()
+    return redirect(request.form.get("voltar") or url_for("admin"))
+
+
+@app.route("/admin/calendario/<int:func_id>")
+def admin_calendario(func_id):
+    if not admin_logado():
+        return redirect(url_for("admin"))
+    db = get_db()
+    func = db.execute("SELECT * FROM funcionarios WHERE id = ?", (func_id,)).fetchone()
+    if func is None:
+        return redirect(url_for("admin"))
+    mes = request.args.get("mes", agora().strftime("%Y-%m"))
+    dia_sel = request.args.get("dia")
+    return render_template(
+        "calendario.html", func=func, mes=mes,
+        celulas=monta_calendario(db, func, mes),
+        dia_sel=dia_sel, detalhe=detalhe_dia(db, func, dia_sel) if dia_sel else None,
+        admin=True, voltar_url=url_for("admin"),
+        mes_ant=mes_delta(mes, -1), mes_prox=mes_delta(mes, 1),
+        hoje_iso=agora().strftime("%Y-%m-%d"),
+    )
 
 
 @app.route("/admin/espelho/<int:func_id>")

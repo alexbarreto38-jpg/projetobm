@@ -13,7 +13,7 @@ app do gestor e no espelho do celular).
 | Acesso | Endereço | Para quem | O que faz |
 |--------|----------|-----------|-----------|
 | **Empresa** | `/`      | dispositivo compartilhado | só bater ponto |
-| **Colaborador** | `/meu`   | celular de cada colaborador | só o espelho do mês (horas, descontos, contestação) |
+| **Colaborador** | `/meu`   | celular de cada colaborador | espelho do mês + calendário (horas, descontos, contestação e justificar faltas) |
 | **Gestor** | `/admin` | você, no PC | painel de administração completo |
 
 ## Como funciona
@@ -39,6 +39,13 @@ app do gestor e no espelho do celular).
   de almoço e café (configuráveis por pessoa); ativar/desativar.
 - **Espelho de ponto mensal** por colaborador: fotos das batidas, atrasos com
   abono, horas trabalhadas, tempo descontado e abonado.
+
+### Calendário e faltas
+- Colaborador e gestor têm uma aba **Calendário**: cada dia mostra as batidas
+  (ou "Falta", "Em análise", "Falta abonada").
+- Num dia de falta, o colaborador **justifica pelo celular** (sem ir ao
+  escritório). A justificativa cai no painel do gestor para **Aprovar** (vira
+  falta abonada) ou **Recusar**.
 
 ### Penalidades (atrasos)
 - **Entrada**: bater depois do horário previsto (ex.: previsto 08:00, bateu

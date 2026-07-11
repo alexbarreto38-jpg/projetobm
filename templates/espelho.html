@@ -1,7 +1,12 @@
 {% extends "base.html" %}
-{% from "_macros.html" import situacao_pill, contestar_form %}
+{% from "_macros.html" import situacao_pill, contestar_form, abas %}
 {% block titulo %}Espelho de ponto — Bater Ponto da WISE{% endblock %}
 {% block conteudo %}
+{% if admin %}
+  {{ abas('espelho', url_for('espelho', func_id=func.id, mes=mes), url_for('admin_calendario', func_id=func.id, mes=mes)) }}
+{% else %}
+  {{ abas('espelho', url_for('meu_espelho', mes=mes), url_for('meu_calendario', mes=mes)) }}
+{% endif %}
 <div class="cartao">
   <span class="eyebrow">{% if admin %}Relatório mensal{% else %}Meu espelho{% endif %} <b>//</b> {{ mes }}</span>
   <h1>Espelho de ponto — <span class="gold">{{ func.nome }}</span></h1>
