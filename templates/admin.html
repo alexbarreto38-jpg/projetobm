@@ -67,6 +67,22 @@
   </p>
 </div>
 {% endif %}
+{% if funcionarios %}
+<div class="cartao">
+  <span class="eyebrow">Calendário <b>//</b> por colaborador</span>
+  <h1>Calendário</h1>
+  <p class="discreto" style="margin-bottom:1rem">Clique em um colaborador para ver o calendário do mês dele.</p>
+  <div class="cal-pessoas">
+    {% for f in funcionarios if f.ativo %}
+    <a class="cal-pessoa" href="{{ url_for('admin_calendario', func_id=f.id) }}">
+      <span class="avatar">{{ f.nome[0]|upper }}</span>
+      <span class="p-nome">{{ f.nome }}</span>
+      <span class="cal-pessoa-cta">Ver calendário →</span>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
 <div class="cartao">
   <span class="eyebrow">Painel <b>//</b> {{ data_hoje }}</span>
   <h1>Equipe <span class="gold">hoje</span></h1>
