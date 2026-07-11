@@ -658,6 +658,7 @@ def admin():
         atrasos = atrasos_do_dia(regs, f)
         feitos = {r["tipo"]: r["horario"][:5] for r in regs}
         hoje.append({
+            "id": f["id"],
             "nome": f["nome"],
             "classe": classe,
             "rotulo": rotulo,

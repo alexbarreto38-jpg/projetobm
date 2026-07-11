@@ -82,7 +82,7 @@
     <tbody>
       {% for h in hoje %}
       <tr>
-        <td>{{ h.nome }}</td>
+        <td><a href="{{ url_for('admin_calendario', func_id=h.id) }}" class="gold">{{ h.nome }}</a></td>
         <td>
           {% if h.classe == 'trabalhando' %}<span class="pill ativo">{{ h.rotulo }}</span>
           {% elif h.classe == 'pausa' %}<span class="pill pausa">{{ h.rotulo }}</span>
@@ -102,6 +102,7 @@
   </table>
   </div>
   <p class="discreto" style="margin-top:.8rem">
+    📅 Clique no nome do colaborador para abrir o <strong>calendário</strong> dele.
     Quem está com a jornada em aberto tem as horas contadas até agora.
   </p>
   {% else %}
