@@ -2,6 +2,48 @@
 {% from "_macros.html" import situacao_pill %}
 {% block titulo %}Gestor — Bater Ponto da WISE{% endblock %}
 {% block conteudo %}
+<div class="cartao">
+  <span class="eyebrow">Painel <b>//</b> {{ data_hoje }}</span>
+  <h1>Equipe <span class="gold">hoje</span></h1>
+  {% if hoje %}
+  <div style="overflow-x:auto">
+  <table style="margin-top:.6rem;min-width:640px">
+    <thead><tr>
+      <th>Colaborador</th><th>Situação</th>
+      <th>Entrada</th><th>Almoço</th><th>Volta almoço</th>
+      <th>Café</th><th>Volta café</th><th>Saída</th>
+      <th>Horas</th><th>Perdido</th>
+    </tr></thead>
+    <tbody>
+      {% for h in hoje %}
+      <tr>
+        <td><a href="{{ url_for('admin_calendario', func_id=h.id) }}" class="gold">{{ h.nome }}</a></td>
+        <td>
+          {% if h.classe == 'trabalhando' %}<span class="pill ativo">{{ h.rotulo }}</span>
+          {% elif h.classe == 'pausa' %}<span class="pill pausa">{{ h.rotulo }}</span>
+          {% elif h.classe == 'fora' %}<span class="pill inativo">{{ h.rotulo }}</span>
+          {% else %}<span class="discreto">{{ h.rotulo }}</span>{% endif %}
+        </td>
+        {% for hora in h.etapas %}
+        <td class="hora">{% if hora %}{{ hora }}{% else %}<span class="discreto">—</span>{% endif %}</td>
+        {% endfor %}
+        <td class="hora">{{ h.horas }}</td>
+        <td class="hora" style="color:{% if h.perdido %}#f0a8a8{% else %}var(--zinc-dim){% endif %}">
+          {{ fmt_minutos(h.perdido) if h.perdido else '—' }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="discreto" style="margin-top:.8rem">
+    📅 Clique no nome do colaborador para abrir o <strong>calendário</strong> dele.
+    Quem está com a jornada em aberto tem as horas contadas até agora.
+  </p>
+  {% else %}
+  <p class="discreto">Nenhum colaborador ativo ainda — cadastre abaixo.</p>
+  {% endif %}
+</div>
 {% if contestacoes %}
 <div class="cartao" style="border-color:var(--line)">
   <span class="eyebrow">Contestações <b>//</b> aguardando você</span>
@@ -83,48 +125,6 @@
   </div>
 </div>
 {% endif %}
-<div class="cartao">
-  <span class="eyebrow">Painel <b>//</b> {{ data_hoje }}</span>
-  <h1>Equipe <span class="gold">hoje</span></h1>
-  {% if hoje %}
-  <div style="overflow-x:auto">
-  <table style="margin-top:.6rem;min-width:640px">
-    <thead><tr>
-      <th>Colaborador</th><th>Situação</th>
-      <th>Entrada</th><th>Almoço</th><th>Volta almoço</th>
-      <th>Café</th><th>Volta café</th><th>Saída</th>
-      <th>Horas</th><th>Perdido</th>
-    </tr></thead>
-    <tbody>
-      {% for h in hoje %}
-      <tr>
-        <td><a href="{{ url_for('admin_calendario', func_id=h.id) }}" class="gold">{{ h.nome }}</a></td>
-        <td>
-          {% if h.classe == 'trabalhando' %}<span class="pill ativo">{{ h.rotulo }}</span>
-          {% elif h.classe == 'pausa' %}<span class="pill pausa">{{ h.rotulo }}</span>
-          {% elif h.classe == 'fora' %}<span class="pill inativo">{{ h.rotulo }}</span>
-          {% else %}<span class="discreto">{{ h.rotulo }}</span>{% endif %}
-        </td>
-        {% for hora in h.etapas %}
-        <td class="hora">{% if hora %}{{ hora }}{% else %}<span class="discreto">—</span>{% endif %}</td>
-        {% endfor %}
-        <td class="hora">{{ h.horas }}</td>
-        <td class="hora" style="color:{% if h.perdido %}#f0a8a8{% else %}var(--zinc-dim){% endif %}">
-          {{ fmt_minutos(h.perdido) if h.perdido else '—' }}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  </div>
-  <p class="discreto" style="margin-top:.8rem">
-    📅 Clique no nome do colaborador para abrir o <strong>calendário</strong> dele.
-    Quem está com a jornada em aberto tem as horas contadas até agora.
-  </p>
-  {% else %}
-  <p class="discreto">Nenhum colaborador ativo ainda — cadastre abaixo.</p>
-  {% endif %}
-</div>
 
 <div class="cartao">
   <span class="eyebrow">Pontualidade <b>//</b> hoje</span>
