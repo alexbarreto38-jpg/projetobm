@@ -69,7 +69,7 @@
 <div class="cartao"><p class="discreto">Nenhum registro neste mês.</p></div>
 {% endif %}
 
-<a href="{{ url_for('admin') if admin else url_for('painel') }}"><button class="secundario">← Voltar</button></a>
+<a href="{{ voltar_url }}"><button class="secundario">← {{ 'Voltar' if admin else 'Sair' }}</button></a>
 
 <style>
   .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px}

@@ -41,7 +41,7 @@
           {% if a.contestacao %}<br><span class="discreto">Contestação: “{{ a.contestacao }}”</span>{% endif %}
         </td>
         <td class="hora">{{ fmt_minutos(a.minutos) }}</td>
-        <td>{{ situacao_pill(a) }}<br>{{ contestar_form(a) }}</td>
+        <td>{{ situacao_pill(a) }}</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -61,7 +61,6 @@
 </div>
 
 <div style="display:flex;gap:.8rem;justify-content:center;flex-wrap:wrap">
-  <a href="{{ url_for('meu_espelho') }}"><button class="secundario">Meu espelho do mês</button></a>
   <a href="{{ url_for('trocar') }}"><button class="secundario">Sair</button></a>
 </div>
 {% endblock %}

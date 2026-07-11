@@ -4,6 +4,18 @@ App interno de registro de ponto para a empresa. Feito em Python (Flask) com
 banco SQLite — sem dependência de serviços externos, roda em qualquer máquina
 da rede interna.
 
+## Três acessos, um só banco de dados
+
+O mesmo servidor atende três "apps", cada um com uma finalidade. Todos leem e
+gravam no mesmo banco (o que o colaborador bate na empresa aparece na hora no
+app do gestor e no espelho do celular).
+
+| Acesso | Endereço | Para quem | O que faz |
+|--------|----------|-----------|-----------|
+| **Empresa** | `/`      | dispositivo compartilhado | só bater ponto |
+| **Colaborador** | `/meu`   | celular de cada colaborador | só o espelho do mês (horas, descontos, contestação) |
+| **Gestor** | `/admin` | você, no PC | painel de administração completo |
+
 ## Como funciona
 
 ### Colaborador

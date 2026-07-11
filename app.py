@@ -286,44 +286,69 @@ def func_logado():
     ).fetchone()
 
 
+def _colaboradores_ativos(db):
+    return db.execute(
+        "SELECT id, nome FROM funcionarios WHERE ativo = 1 AND papel = 'colaborador' ORDER BY nome"
+    ).fetchall()
+
+
+# ---- app da EMPRESA (dispositivo compartilhado): só bater ponto ----
+
 @app.route("/")
 def index():
-    db = get_db()
-    pessoas = db.execute(
-        "SELECT id, nome, papel FROM funcionarios WHERE ativo = 1"
-        " ORDER BY CASE papel WHEN 'gestor' THEN 0 ELSE 1 END, nome"
-    ).fetchall()
-    return render_template("index.html", pessoas=pessoas)
+    return render_template("index.html", pessoas=_colaboradores_ativos(get_db()), modo="empresa")
 
 
 @app.route("/acessar/<int:func_id>", methods=["GET", "POST"])
 def acessar(func_id):
     db = get_db()
     pessoa = db.execute(
-        "SELECT * FROM funcionarios WHERE id = ? AND ativo = 1", (func_id,)
+        "SELECT * FROM funcionarios WHERE id = ? AND ativo = 1 AND papel = 'colaborador'",
+        (func_id,),
     ).fetchone()
     if pessoa is None:
         return redirect(url_for("index"))
-
     if request.method == "GET":
-        return render_template("acessar.html", pessoa=pessoa)
-
+        return render_template("acessar.html", pessoa=pessoa, modo="empresa")
     pin = request.form.get("pin", "").strip()
     if pin != pessoa["pin"]:
         flash("PIN incorreto. Tente novamente.", "erro")
         return redirect(url_for("acessar", func_id=func_id))
-
-    if pessoa["papel"] == "gestor":
-        session["admin"] = True
-        return redirect(url_for("admin"))
     session["func_id"] = pessoa["id"]
     return redirect(url_for("painel"))
 
 
+# ---- app do COLABORADOR (celular): só o espelho do mês ----
+
+@app.route("/meu")
+def meu():
+    return render_template("index.html", pessoas=_colaboradores_ativos(get_db()), modo="colaborador")
+
+
+@app.route("/meu/acessar/<int:func_id>", methods=["GET", "POST"])
+def meu_acessar(func_id):
+    db = get_db()
+    pessoa = db.execute(
+        "SELECT * FROM funcionarios WHERE id = ? AND ativo = 1 AND papel = 'colaborador'",
+        (func_id,),
+    ).fetchone()
+    if pessoa is None:
+        return redirect(url_for("meu"))
+    if request.method == "GET":
+        return render_template("acessar.html", pessoa=pessoa, modo="colaborador")
+    pin = request.form.get("pin", "").strip()
+    if pin != pessoa["pin"]:
+        flash("PIN incorreto. Tente novamente.", "erro")
+        return redirect(url_for("meu_acessar", func_id=func_id))
+    session["func_id"] = pessoa["id"]
+    return redirect(url_for("meu_espelho"))
+
+
 @app.route("/trocar")
 def trocar():
+    modo = request.args.get("modo", "empresa")
     session.pop("func_id", None)
-    return redirect(url_for("index"))
+    return redirect(url_for("meu") if modo == "colaborador" else url_for("index"))
 
 
 @app.route("/painel")
@@ -468,13 +493,13 @@ def contestar(reg_id):
 def meu_espelho():
     func = func_logado()
     if func is None:
-        flash("Digite seu PIN para consultar o espelho.", "erro")
-        return redirect(url_for("index"))
+        flash("Toque no seu nome para ver suas horas.", "erro")
+        return redirect(url_for("meu"))
     mes = request.args.get("mes", agora().strftime("%Y-%m"))
     linhas, totais = monta_espelho(get_db(), func, mes)
     return render_template(
         "espelho.html", func=func, mes=mes, linhas=linhas, totais=totais,
-        admin=False, fmt_minutos=fmt_minutos,
+        admin=False, voltar_url=url_for("trocar", modo="colaborador"), fmt_minutos=fmt_minutos,
     )
 
 
@@ -707,7 +732,7 @@ def espelho(func_id):
     linhas, totais = monta_espelho(db, func, mes)
     return render_template(
         "espelho.html", func=func, mes=mes, linhas=linhas, totais=totais,
-        admin=True, fmt_minutos=fmt_minutos,
+        admin=True, voltar_url=url_for("admin"), fmt_minutos=fmt_minutos,
     )
 
 

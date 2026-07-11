@@ -2,13 +2,12 @@
 {% block titulo %}{{ pessoa.nome }} — Bater Ponto da WISE{% endblock %}
 {% block conteudo %}
 <div class="cartao" style="max-width:420px;margin:0 auto;text-align:center">
-  <span class="avatar-grande {% if pessoa.papel == 'gestor' %}avatar-grande--gestor{% endif %}"
-        style="margin-bottom:14px">
+  <span class="avatar-grande" style="margin-bottom:14px">
     {{ pessoa.nome[0]|upper }}
   </span>
   <h1>{{ pessoa.nome }}</h1>
   <p class="discreto" style="margin-bottom:1.2rem">
-    Digite seu PIN para {% if pessoa.papel == 'gestor' %}abrir o painel{% else %}bater o ponto{% endif %}.
+    Digite seu PIN para {% if modo == 'colaborador' %}ver suas horas{% else %}bater o ponto{% endif %}.
   </p>
   <form method="post">
     <input type="password" name="pin" inputmode="numeric" autocomplete="off"
@@ -20,7 +19,7 @@
       <svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
     </button>
   </form>
-  <p style="margin-top:1rem"><a href="{{ url_for('index') }}" class="discreto">← Voltar</a></p>
+  <p style="margin-top:1rem"><a href="{{ url_for('meu') if modo == 'colaborador' else url_for('index') }}" class="discreto">← Voltar</a></p>
 </div>
 
 <style>

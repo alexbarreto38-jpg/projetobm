@@ -5,20 +5,19 @@
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
   </div>
   <h1>Quem é <span class="gold">você</span>?</h1>
-  <p class="discreto">Toque no seu nome e digite o PIN.</p>
+  <p class="discreto">
+    {% if modo == 'colaborador' %}Toque no seu nome para ver suas horas.
+    {% else %}Toque no seu nome e digite o PIN.{% endif %}
+  </p>
 </div>
 
 <div class="pessoas">
   {% for p in pessoas %}
-  <a class="pessoa {% if p.papel == 'gestor' %}pessoa--gestor{% endif %}"
-     href="{{ url_for('acessar', func_id=p.id) }}">
+  <a class="pessoa"
+     href="{{ url_for('meu_acessar', func_id=p.id) if modo == 'colaborador' else url_for('acessar', func_id=p.id) }}">
     <span class="avatar">{{ p.nome[0]|upper }}</span>
     <span class="p-nome">{{ p.nome }}</span>
-    {% if p.papel == 'gestor' %}
-      <span class="pill gestor-pill">Administrador</span>
-    {% else %}
-      <span class="pill gestor-pill">Colaborador</span>
-    {% endif %}
+    <span class="pill gestor-pill">Colaborador</span>
   </a>
   {% endfor %}
 </div>
