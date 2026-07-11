@@ -114,6 +114,12 @@ def init_db():
         );
         CREATE INDEX IF NOT EXISTS idx_just_func_dia
             ON justificativas (funcionario_id, dia);
+        CREATE TABLE IF NOT EXISTS notificacoes (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            funcionario_id INTEGER NOT NULL REFERENCES funcionarios(id),
+            horario        TEXT NOT NULL,               -- HH:MM
+            mensagem       TEXT NOT NULL
+        );
         """
     )
     # migração de bancos criados em versões anteriores
@@ -293,6 +299,13 @@ def justificativa_do_dia(db, func_id, dia):
         "SELECT * FROM justificativas WHERE funcionario_id = ? AND dia = ? ORDER BY id DESC LIMIT 1",
         (func_id, dia),
     ).fetchone()
+
+
+def notificacoes_do(db, func_id):
+    return db.execute(
+        "SELECT * FROM notificacoes WHERE funcionario_id = ? ORDER BY horario",
+        (func_id,),
+    ).fetchall()
 
 
 def status_do_dia(db, func, dia):
@@ -567,11 +580,14 @@ def meu_espelho():
     if func is None:
         flash("Toque no seu nome para ver suas horas.", "erro")
         return redirect(url_for("meu"))
+    db = get_db()
     mes = request.args.get("mes", agora().strftime("%Y-%m"))
-    linhas, totais = monta_espelho(get_db(), func, mes)
+    linhas, totais = monta_espelho(db, func, mes)
     return render_template(
         "espelho.html", func=func, mes=mes, linhas=linhas, totais=totais,
-        admin=False, voltar_url=url_for("trocar", modo="colaborador"), fmt_minutos=fmt_minutos,
+        admin=False, voltar_url=url_for("trocar", modo="colaborador"),
+        notificacoes=notificacoes_do(db, func["id"]), agora_hm=agora().strftime("%H:%M"),
+        fmt_minutos=fmt_minutos,
     )
 
 
@@ -590,6 +606,7 @@ def meu_calendario():
         admin=False, voltar_url=url_for("trocar", modo="colaborador"),
         mes_ant=mes_delta(mes, -1), mes_prox=mes_delta(mes, 1),
         hoje_iso=agora().strftime("%Y-%m-%d"),
+        notificacoes=notificacoes_do(db, func["id"]), agora_hm=agora().strftime("%H:%M"),
     )
 
 
@@ -704,6 +721,11 @@ def admin():
         for j in faltas_pend
     ]
 
+    notificacoes = db.execute(
+        "SELECT n.id, n.horario, n.mensagem, f.nome FROM notificacoes n"
+        " JOIN funcionarios f ON f.id = n.funcionario_id ORDER BY n.horario"
+    ).fetchall()
+
     return render_template(
         "admin.html",
         funcionarios=funcionarios,
@@ -713,6 +735,7 @@ def admin():
         faltas_dia=faltas_dia,
         contestacoes=contestacoes,
         faltas_pend=faltas_pend,
+        notificacoes=notificacoes,
         data_hoje=now.strftime("%d/%m/%Y"),
         fmt_minutos=fmt_minutos,
     )
@@ -861,6 +884,37 @@ def responder_justificativa(jid, acao):
     db.execute("UPDATE justificativas SET status = ? WHERE id = ?", (novo, jid))
     db.commit()
     return redirect(request.form.get("voltar") or url_for("admin"))
+
+
+@app.route("/admin/notificacoes", methods=["POST"])
+def nova_notificacao():
+    if not admin_logado():
+        return redirect(url_for("admin"))
+    fid = request.form.get("funcionario_id")
+    horario = request.form.get("horario", "").strip()
+    msg = request.form.get("mensagem", "").strip()
+    db = get_db()
+    if not (fid and horario and msg):
+        flash("Escolha o colaborador, o horário e escreva a mensagem.", "erro")
+    else:
+        db.execute(
+            "INSERT INTO notificacoes (funcionario_id, horario, mensagem) VALUES (?, ?, ?)",
+            (fid, horario, msg),
+        )
+        db.commit()
+        flash("Notificação agendada para o app do colaborador.", "ok")
+    return redirect(url_for("admin"))
+
+
+@app.route("/admin/notificacoes/<int:nid>/remover", methods=["POST"])
+def remover_notificacao(nid):
+    if not admin_logado():
+        return redirect(url_for("admin"))
+    db = get_db()
+    db.execute("DELETE FROM notificacoes WHERE id = ?", (nid,))
+    db.commit()
+    flash("Notificação removida.", "ok")
+    return redirect(url_for("admin"))
 
 
 @app.route("/admin/calendario/<int:func_id>")

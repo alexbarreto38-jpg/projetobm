@@ -1,3 +1,20 @@
+{% macro notificacoes_card(notificacoes, agora_hm) %}
+{% if notificacoes %}
+<div class="cartao" style="border-color:var(--line)">
+  <span class="eyebrow">🔔 Notificações <b>//</b> {{ notificacoes|length }}</span>
+  <div style="margin-top:.7rem;display:flex;flex-direction:column;gap:10px">
+    {% for n in notificacoes %}
+    <div class="notif {{ 'recebida' if n.horario <= agora_hm }}">
+      <span class="notif-hora">{{ n.horario }}</span>
+      <span class="notif-msg">{{ n.mensagem }}</span>
+      <span class="notif-tag">{{ '🔔 recebida' if n.horario <= agora_hm else 'agendada' }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endmacro %}
+
 {% macro abas(atual, espelho_url, calendario_url) %}
 <div class="abas">
   <a href="{{ espelho_url }}" class="{{ 'ativa' if atual == 'espelho' }}">Espelho</a>

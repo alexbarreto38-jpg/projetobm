@@ -1,7 +1,8 @@
 {% extends "base.html" %}
-{% from "_macros.html" import abas %}
+{% from "_macros.html" import abas, notificacoes_card %}
 {% block titulo %}Calendário — Bater Ponto da WISE{% endblock %}
 {% block conteudo %}
+{% if not admin %}{{ notificacoes_card(notificacoes, agora_hm) }}{% endif %}
 {% if admin %}
   {{ abas('calendario', url_for('espelho', func_id=func.id, mes=mes), url_for('admin_calendario', func_id=func.id, mes=mes)) }}
   {% set base_url = url_for('admin_calendario', func_id=func.id) %}

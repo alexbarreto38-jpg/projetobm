@@ -256,6 +256,55 @@
 </div>
 
 <div class="cartao">
+  <span class="eyebrow">Notificações <b>//</b> app do colaborador</span>
+  <h1>Notificações</h1>
+  <p class="discreto" style="margin-bottom:1rem">Agende uma mensagem para aparecer no app do colaborador em um horário.</p>
+  <form method="post" action="{{ url_for('nova_notificacao') }}">
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:end">
+      <div>
+        <label for="notif-func">Colaborador</label>
+        <select id="notif-func" name="funcionario_id"
+                style="min-width:150px;padding:.55rem .7rem;font-family:var(--body);font-size:.95rem;background:var(--ink2);color:var(--ivory);border:1px solid var(--line-soft);border-radius:10px">
+          {% for f in funcionarios if f.ativo %}<option value="{{ f.id }}">{{ f.nome }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="notif-hora">Horário</label>
+        <input type="time" id="notif-hora" name="horario" value="08:00">
+      </div>
+    </div>
+    <label for="notif-msg">Mensagem</label>
+    <textarea id="notif-msg" name="mensagem" rows="2" maxlength="200" required
+              placeholder="Ex.: Reunião de equipe às 14h, não se esqueça."
+              style="width:100%;max-width:480px;padding:.6rem .75rem;font-family:var(--body);font-size:.95rem;background:var(--ink2);color:var(--ivory);border:1px solid var(--line-soft);border-radius:10px;resize:vertical"></textarea>
+    <div><button type="submit">Agendar notificação</button></div>
+  </form>
+  {% if notificacoes %}
+  <div style="overflow-x:auto;margin-top:1.2rem">
+  <table>
+    <thead><tr><th>Colaborador</th><th>Horário</th><th>Mensagem</th><th></th></tr></thead>
+    <tbody>
+      {% for n in notificacoes %}
+      <tr>
+        <td>{{ n.nome }}</td>
+        <td class="hora">{{ n.horario }}</td>
+        <td>{{ n.mensagem }}</td>
+        <td>
+          <form method="post" action="{{ url_for('remover_notificacao', nid=n.id) }}">
+            <button class="secundario" style="padding:.3rem .8rem;font-size:.78rem">Remover</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="discreto" style="margin-top:1rem">Nenhuma notificação agendada.</p>
+  {% endif %}
+</div>
+
+<div class="cartao">
   <h2>Cadastrar colaborador</h2>
   <form method="post" action="{{ url_for('novo_funcionario') }}">
     <label for="nome">Nome</label>
