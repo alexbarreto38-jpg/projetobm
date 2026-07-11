@@ -64,9 +64,10 @@ STATUS = {
 
 def get_db():
     if "db" not in g:
-        g.db = sqlite3.connect(DB_PATH)
+        g.db = sqlite3.connect(DB_PATH, timeout=15)
         g.db.row_factory = sqlite3.Row
         g.db.execute("PRAGMA foreign_keys = ON")
+        g.db.execute("PRAGMA journal_mode = WAL")  # menos travas com vários acessos
     return g.db
 
 
@@ -78,7 +79,7 @@ def close_db(_exc):
 
 
 def init_db():
-    db = sqlite3.connect(DB_PATH)
+    db = sqlite3.connect(DB_PATH, timeout=15)
     db.executescript(
         """
         CREATE TABLE IF NOT EXISTS funcionarios (
@@ -953,7 +954,19 @@ def espelho(func_id):
     )
 
 
+def _avisa_seguranca():
+    padroes = []
+    if ADMIN_SENHA == "admin":
+        padroes.append("PONTO_ADMIN_SENHA")
+    if app.secret_key == "troque-esta-chave-em-producao":
+        padroes.append("PONTO_SECRET")
+    if padroes:
+        print("[Ponto WISE] ATENÇÃO: defina " + " e ".join(padroes) +
+              " antes de usar em produção.", flush=True)
+
+
 init_db()
+_avisa_seguranca()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)

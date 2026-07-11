@@ -55,7 +55,17 @@ app do gestor e no espelho do celular).
   abonou no painel) não entra no tempo descontado.
 - O mês fecha com o total: horas trabalhadas, tempo descontado e abonado.
 
-## Como rodar
+## Colocar no ar (produção)
+
+Para publicar na internet (com HTTPS, para a foto funcionar em qualquer
+celular), veja o guia passo a passo em **[DEPLOY.md](DEPLOY.md)** — usa o
+Render, com plano gratuito para testar e disco permanente para valer.
+
+Em produção o app roda com **gunicorn** (`Procfile` já incluído) e lê as
+senhas das variáveis de ambiente (`PONTO_ADMIN_SENHA`, `PONTO_GESTOR_PIN`,
+`PONTO_SECRET`).
+
+## Como rodar localmente
 
 ```bash
 pip install -r requirements.txt

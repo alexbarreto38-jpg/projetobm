@@ -1,0 +1,27 @@
+# Blueprint de deploy no Render (https://render.com)
+# Suba este repositório no GitHub e use "New + > Blueprint" apontando para ele.
+services:
+  - type: web
+    name: ponto-wise
+    runtime: python
+    plan: free                       # troque para "starter" e adicione o disco abaixo para os dados ficarem salvos
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --workers 2 --timeout 120
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: PONTO_SECRET            # chave de sessão — gerada automaticamente
+        generateValue: true
+      - key: PONTO_ADMIN_SENHA       # senha da área do gestor — defina a sua no painel do Render
+        sync: false
+      - key: PONTO_GESTOR_PIN        # PIN inicial do gestor (Alex) — defina o seu
+        sync: false
+      - key: PONTO_DB                # caminho do banco (use o disco quando ativar o plano starter)
+        value: ponto.db
+    # --- Para os dados NÃO se perderem a cada atualização, use o plano "starter"
+    # --- e descomente o bloco abaixo, e troque PONTO_DB para /var/data/ponto.db
+    # disk:
+    #   name: dados
+    #   mountPath: /var/data
+    #   sizeGB: 1
