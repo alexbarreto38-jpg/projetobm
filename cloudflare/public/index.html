@@ -762,7 +762,7 @@ function detalheDia(f, dia, opts) {
   const j = justPorDia(f.id, dia);
   let corpo = '';
   if (regs.length) {
-    corpo = `<div class="batidas-linha">${regs.map(b => `<span class="batida-chip">${ROTULOS[b.tipo]} <span class="hora">${b.horario.slice(0,5)}</span></span>`).join('')}</div>`;
+    corpo = `<div class="batidas-linha">${regs.map(b => `<span class="batida-chip">${b.foto ? `<img src="${b.foto}" class="foto-mini" alt="foto">` : ''}${ROTULOS[b.tipo]} <span class="hora">${b.horario.slice(0,5)}</span></span>`).join('')}</div>`;
   } else {
     corpo = `<p class="discreto">Nenhuma batida neste dia.</p>`;
   }
