@@ -57,9 +57,14 @@ app do gestor e no espelho do celular).
 
 ## Colocar no ar (produção)
 
-Para publicar na internet (com HTTPS, para a foto funcionar em qualquer
-celular), veja o guia passo a passo em **[DEPLOY.md](DEPLOY.md)** — usa o
-Render, com plano gratuito para testar e disco permanente para valer.
+Duas formas de publicar na internet (ambas com HTTPS, para a foto funcionar
+em qualquer celular):
+
+- **Cloudflare (100% grátis, recomendado)** — versão em `cloudflare/`, roda
+  num Worker + banco D1. Sempre no ar e sem custo para equipes pequenas. Guia:
+  **[cloudflare/CLOUDFLARE.md](cloudflare/CLOUDFLARE.md)**.
+- **Render** — a versão Flask deste repositório, com plano gratuito para
+  testar e disco permanente (pago) para valer. Guia: **[DEPLOY.md](DEPLOY.md)**.
 
 Em produção o app roda com **gunicorn** (`Procfile` já incluído) e lê as
 senhas das variáveis de ambiente (`PONTO_ADMIN_SENHA`, `PONTO_GESTOR_PIN`,
