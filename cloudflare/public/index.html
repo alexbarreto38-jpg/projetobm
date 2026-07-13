@@ -367,13 +367,11 @@ function atrasosDoDia(regs, f) {
     if (m > 0) out.push({ reg: por.entrada, evento:'Entrada',
       detalhe:`previsto ${f.hora_entrada}, bateu ${por.entrada.horario.slice(0,5)}`, minutos:m });
   }
-  for (const [s, v, lim, nome] of [['saida_almoco','volta_almoco',f.almoco_min,'Almoço'],
-                                   ['saida_cafe','volta_cafe',f.cafe_min,'Café da tarde']]) {
-    if (por[s] && por[v]) {
-      const dur = _min(por[v].horario) - _min(por[s].horario), m = dur - lim;
-      if (m > 0) out.push({ reg: por[v], evento:nome,
-        detalhe:`pausa de ${fmtMin(dur)} (permitido ${fmtMin(lim)})`, minutos:m });
-    }
+  // desconto SÓ na entrada e na volta do almoço (café não desconta)
+  if (por.saida_almoco && por.volta_almoco) {
+    const dur = _min(por.volta_almoco.horario) - _min(por.saida_almoco.horario), m = dur - f.almoco_min;
+    if (m > 0) out.push({ reg: por.volta_almoco, evento:'Almoço',
+      detalhe:`pausa de ${fmtMin(dur)} (permitido ${fmtMin(f.almoco_min)})`, minutos:m });
   }
   return out;
 }
@@ -381,21 +379,45 @@ function resumoDoDia(f, dia) {
   const regs = regsDo(f.id, dia);
   const [seg, aberto] = trabalhadoDoDia(regs);
   const atrasos = atrasosDoDia(regs, f);
+  let perdido = 0, abonado = 0, aCompensar = 0;
+  for (const a of atrasos) {
+    if (a.reg.abonado) abonado += a.minutos;
+    else if (a.reg.compensar) aCompensar += a.minutos;   // vai compensar saindo mais tarde
+    else perdido += a.minutos;
+  }
+  // compensação na saída: o que NÃO foi coberto ficando além do horário vira desconto
+  let compensado = 0, faltaCompensar = 0;
+  if (aCompensar > 0) {
+    const saida = regs.find(r => r.tipo === 'saida');
+    if (saida && f.hora_saida) {
+      const extra = _min(saida.horario) - _min(f.hora_saida); // minutos além da saída padrão
+      compensado = Math.max(0, Math.min(aCompensar, extra));
+      faltaCompensar = aCompensar - compensado;
+      perdido += faltaCompensar;
+    }
+    // sem batida de saída ainda: fica pendente, não desconta agora
+  }
   return { regs, seg, aberto: aberto !== null, atrasos,
-    trabalhado: fmtSeg(seg),
-    perdido: atrasos.filter(a => !a.reg.abonado).reduce((s,a) => s+a.minutos, 0),
-    abonado: atrasos.filter(a => a.reg.abonado).reduce((s,a) => s+a.minutos, 0) };
+    trabalhado: fmtSeg(seg), perdido, abonado, aCompensar, compensado, faltaCompensar };
 }
 function montaEspelho(f, mes) {
   const dias = [...new Set(db.registros.filter(r => r.funcionario_id === f.id && r.dia.startsWith(mes))
     .map(r => r.dia))].sort();
   const linhas = dias.map(dia => ({ dia, ...resumoDoDia(f, dia) }));
+  const segTot = linhas.reduce((s,l) => s+l.seg, 0);
+  const perdidoTot = linhas.reduce((s,l) => s+l.perdido, 0);
+  const vMin = (f.salario > 0 && f.horas_mes > 0) ? f.salario / f.horas_mes / 60 : 0;
   return { linhas, totais: {
     dias: dias.length,
-    trabalhado: fmtSeg(linhas.reduce((s,l) => s+l.seg, 0)),
-    perdido: linhas.reduce((s,l) => s+l.perdido, 0),
-    abonado: linhas.reduce((s,l) => s+l.abonado, 0) } };
+    seg: segTot,
+    trabalhado: fmtSeg(segTot),
+    perdido: perdidoTot,
+    abonado: linhas.reduce((s,l) => s+l.abonado, 0),
+    reais: perdidoTot * vMin,
+    horasMin: f.horas_mes || 0 } };
 }
+const fmtReais = v => 'R$ ' + (v || 0).toFixed(2).replace('.', ',');
+const fmtHoras = seg => (seg/3600).toFixed(1).replace('.', ',') + 'h';
 
 // ------------------------------------------------ estado / navegação
 const st = { tela: MODO === 'gestor' ? 'gestorLogin' : 'pin',
@@ -584,9 +606,7 @@ function baterAgora() {
     if (res.erro) { flash(res.erro, 'erro'); st.tela = 'painel'; render(); return; }
     recarregar().then(() => {
       const f = funcPorId(st.funcId);
-      const atraso = atrasosDoDia(regsDo(f.id, hojeStr()), f).find(a => a.reg.tipo === tipo);
-      if (atraso && atraso.reg.abonado) flash(`${atraso.evento}: excedeu ${fmtMin(atraso.minutos)} (${atraso.detalhe}) — marcado como avisado e autorizado.`, 'ok');
-      else if (atraso) flash(`Atenção: ${atraso.evento.toLowerCase()} excedeu ${fmtMin(atraso.minutos)} (${atraso.detalhe}). Esse tempo será descontado.`, 'erro');
+      if (avisado) flash(`${ROTULOS[tipo]} registrada. Seu aviso ao gestor foi anexado.`, 'ok');
       else if (tipo !== 'saida') flash(`${ROTULOS[tipo]} registrada às ${(res.horario || '').slice(0,5)}.`, 'ok');
       st.tela = tipo === 'saida' ? 'resumo' : 'painel';
       render();
@@ -596,6 +616,7 @@ function baterAgora() {
 
 function situacaoPill(r) {
   if (r.abonado) return '<span class="pill ativo">abonado</span>';
+  if (r.compensar) return '<span class="pill pausa">a compensar na saída</span>';
   if (r.contestacao_status === 'pendente') return '<span class="pill pausa">contestação em análise</span>';
   if (r.contestacao_status === 'recusada') return '<span class="pill atraso">descontado</span> <span class="discreto">(recusada)</span>';
   return '<span class="pill atraso">descontado</span>';
@@ -619,7 +640,10 @@ const linhaAtraso = (a, admin, contest) => `
   <td>${a.evento} <span class="discreto">(${a.detalhe})</span>${a.reg.motivo ? `<br><span class="discreto">Motivo: “${esc(a.reg.motivo)}”</span>` : ''}${a.reg.contestacao ? `<br><span class="discreto">Contestação: “${esc(a.reg.contestacao)}”</span>` : ''}</td>
   <td class="hora">${fmtMin(a.minutos)}</td>
   <td>${situacaoPill(a.reg)}${contest ? '<br>' + contestarForm(a.reg) : ''}</td>
-  ${admin ? `<td><button class="secundario" style="padding:.3rem .8rem;font-size:.78rem" onclick="abonar(${a.reg.id})">${a.reg.abonado ? 'Remover abono' : 'Abonar'}</button></td>` : ''}
+  ${admin ? `<td><div style="display:flex;gap:5px;flex-wrap:wrap">
+    <button class="secundario" style="padding:.3rem .7rem;font-size:.76rem" onclick="abonar(${a.reg.id})">${a.reg.abonado ? 'Remover abono' : 'Abonar'}</button>
+    ${a.evento === 'Almoço' ? `<button class="secundario" style="padding:.3rem .7rem;font-size:.76rem" onclick="compensar(${a.reg.id})">${a.reg.compensar ? 'Cancelar comp.' : 'Compensar'}</button>` : ''}
+  </div></td>` : ''}
 </tr>`;
 function enviarContestacao(regId) {
   const el = document.getElementById('cont-' + regId);
@@ -648,19 +672,6 @@ TELAS.resumo = () => {
       <td>${b.foto ? `<img src="${b.foto}" class="foto-mini" alt="foto da batida">` : '<span class="discreto">—</span>'}</td></tr>`).join('')}</tbody>
   </table></div>
 </div>
-<div class="cartao">
-  <h2>Pontualidade</h2>
-  ${r.atrasos.length ? `
-  <div class="tabela-rolagem"><table>
-    <thead><tr><th>Evento</th><th>Excedido</th><th>Situação</th></tr></thead>
-    <tbody>${r.atrasos.map(a => linhaAtraso(a, false)).join('')}</tbody>
-  </table></div>
-  <p style="margin-top:1rem">
-    ${r.perdido ? `<span class="eyebrow" style="margin:0">Tempo perdido hoje</span><br>
-      <span class="hora" style="font-size:1.2rem;font-weight:700;color:#f0a8a8">${fmtMin(r.perdido)}</span>` : ''}
-    ${r.abonado ? `<br><span class="discreto">Abonado pelo gestor: ${fmtMin(r.abonado)}</span>` : ''}
-  </p>` : '<p class="discreto">✦ Nenhum atraso hoje — pontualidade em dia!</p>'}
-</div>
 <div class="acoes">
   <button class="secundario" onclick="trocar()">Sair</button>
 </div>`;
@@ -680,8 +691,9 @@ function espelhoHtml(f, admin) {
   <div class="kpis">
     <div class="kpi"><span class="kpi-num">${totais.trabalhado}</span><span class="kpi-lbl">Horas trabalhadas</span></div>
     <div class="kpi"><span class="kpi-num">${totais.dias}</span><span class="kpi-lbl">Dias com registro</span></div>
+    ${admin ? `
     <div class="kpi"><span class="kpi-num" style="color:#f0716c">${totais.perdido ? fmtMin(totais.perdido) : '0 min'}</span><span class="kpi-lbl">Tempo descontado</span></div>
-    <div class="kpi"><span class="kpi-num" style="color:var(--zap)">${totais.abonado ? fmtMin(totais.abonado) : '0 min'}</span><span class="kpi-lbl">Abonado pelo gestor</span></div>
+    <div class="kpi"><span class="kpi-num" style="color:#f0716c">${fmtReais(totais.reais)}</span><span class="kpi-lbl">Desconto no mês</span></div>` : ''}
   </div>
 </div>
 ${linhas.length ? linhas.map(l => `
@@ -692,9 +704,9 @@ ${linhas.length ? linhas.map(l => `
   </div>
   <div class="batidas-linha">${l.regs.map(b => `<span class="batida-chip">
     ${b.foto ? `<img src="${b.foto}" class="foto-mini" alt="foto">` : ''}${ROTULOS[b.tipo]} <span class="hora">${b.horario.slice(0,5)}</span></span>`).join('')}</div>
-  ${l.atrasos.length ? `<div class="tabela-rolagem"><table style="margin-top:.8rem">
-    <thead><tr><th>Atraso</th><th>Excedido</th><th>Situação</th>${admin ? '<th></th>' : ''}</tr></thead>
-    <tbody>${l.atrasos.map(a => linhaAtraso(a, admin, !admin)).join('')}</tbody>
+  ${admin && l.atrasos.length ? `<div class="tabela-rolagem"><table style="margin-top:.8rem">
+    <thead><tr><th>Atraso</th><th>Excedido</th><th>Situação</th><th></th></tr></thead>
+    <tbody>${l.atrasos.map(a => linhaAtraso(a, true, false)).join('')}</tbody>
   </table></div>` : ''}
 </div>`).join('') : '<div class="cartao"><p class="discreto">Nenhum registro neste mês.</p></div>'}
 ${admin
@@ -901,8 +913,10 @@ TELAS.admin = () => {
     return { f, classe, rotulo, atrasos,
       etapas: ORDEM.map(t => feitos[t] || null),
       horas: fmtSeg(seg),
-      perdido: atrasos.filter(a => !a.reg.abonado).reduce((s,a) => s+a.minutos, 0) };
+      perdido: atrasos.filter(a => !a.reg.abonado && !a.reg.compensar).reduce((s,a) => s+a.minutos, 0) };
   });
+  const mesFech = st.mesFech || mesAtual();
+  const fechamento = ativos.map(f => ({ f, totais: montaEspelho(f, mesFech).totais }));
   const atrasosHoje = hoje.flatMap(h => h.atrasos.map(a => ({ ...a, nome: h.f.nome })));
   const pillStatus = h =>
     h.classe === 'trabalhando' ? `<span class="pill ativo">${h.rotulo}</span>` :
@@ -947,6 +961,28 @@ TELAS.admin = () => {
     </tr>`).join('')}</tbody>
   </table></div>
   <p class="discreto" style="margin-top:.8rem">Quem está com a jornada em aberto tem as horas contadas até agora.</p>
+</div>
+<div class="cartao">
+  <span class="eyebrow">Fechamento do mês <b>//</b> só o gestor vê</span>
+  <h1>Horas &amp; <span class="gold">desconto</span></h1>
+  <div style="margin:.6rem 0 1rem">
+    <input type="month" id="mesFech" value="${mesFech}" onchange="st.mesFech=this.value;render()"
+      style="padding:.5rem .7rem;background:var(--ink2);color:var(--ivory);border:1px solid var(--line-soft);border-radius:10px"></div>
+  <div class="tabela-rolagem"><table style="min-width:560px">
+    <thead><tr><th>Colaborador</th><th>Horas trabalhadas</th><th>Meta (h/mês)</th><th>Tempo descontado</th><th>Desconto (R$)</th></tr></thead>
+    <tbody>${fechamento.map(x => {
+      const horas = x.totais.seg/3600;
+      const bateuMeta = x.totais.horasMin > 0 && horas >= x.totais.horasMin;
+      return `<tr>
+        <td>${esc(x.f.nome)}</td>
+        <td class="hora" style="color:${bateuMeta ? 'var(--zap)' : 'var(--ivory)'}">${fmtHoras(x.totais.seg)}</td>
+        <td class="hora">${x.totais.horasMin ? x.totais.horasMin + 'h' : '—'}</td>
+        <td class="hora" style="color:${x.totais.perdido ? '#f0a8a8' : 'var(--zinc-dim)'}">${x.totais.perdido ? fmtMin(x.totais.perdido) : '—'}</td>
+        <td class="hora" style="color:${x.totais.reais ? '#f0a8a8' : 'var(--zinc-dim)'};font-weight:700">${x.totais.reais ? fmtReais(x.totais.reais) : '—'}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="5" class="discreto">Nenhum colaborador ativo ainda.</td></tr>'}</tbody>
+  </table></div>
+  <p class="discreto" style="margin-top:.8rem">Esta parte é só sua — nunca aparece pro colaborador. O desconto usa <strong>salário ÷ carga do mês ÷ 60</strong> (valor do minuto). Configure salário e carga em cada colaborador acima.</p>
 </div>
 ${contestacoes.length ? `<div class="cartao" style="border-color:var(--line)">
   <span class="eyebrow">Contestações <b>//</b> aguardando você</span>
@@ -1033,7 +1069,7 @@ ${faltasPend.length ? `<div class="cartao" style="border-color:var(--line)">
   <span class="eyebrow">Gestão <b>//</b> equipe</span>
   <h1>Colaboradores</h1>
   <div class="tabela-rolagem"><table style="margin-top:.6rem">
-    <thead><tr><th>Nome</th><th>Status</th><th>Senha / Entrada / Almoço / Café</th><th></th></tr></thead>
+    <thead><tr><th>Nome</th><th>Status</th><th>PIN / Entrada / Saída / Almoço(min) / Salário R$ / Horas mês</th><th></th></tr></thead>
     <tbody>${colaboradores.map(f => `<tr>
       <td>${esc(f.nome)}<br>
         <a class="gold" style="font-size:.85rem;cursor:pointer" onclick="verEspelho(${f.id})">Espelho</a>
@@ -1041,10 +1077,12 @@ ${faltasPend.length ? `<div class="cartao" style="border-color:var(--line)">
         <a class="gold" style="font-size:.85rem;cursor:pointer" onclick="verCalendario(${f.id})">Calendário</a></td>
       <td>${f.ativo ? '<span class="pill ativo">ativo</span>' : '<span class="pill inativo">inativo</span>'}</td>
       <td><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <input type="text" class="mini" id="pin-${f.id}" value="${f.pin}" style="width:74px" title="Senha (PIN): 4 a 6 dígitos">
-        <input type="time" class="mini" id="he-${f.id}" value="${f.hora_entrada}" style="width:110px">
-        <input type="text" class="mini" id="al-${f.id}" value="${f.almoco_min}" style="width:48px" title="Minutos de almoço">
-        <input type="text" class="mini" id="ca-${f.id}" value="${f.cafe_min}" style="width:48px" title="Minutos de café">
+        <input type="text" class="mini" id="pin-${f.id}" value="${f.pin}" style="width:70px" title="Senha (PIN): 4 a 6 dígitos">
+        <input type="time" class="mini" id="he-${f.id}" value="${f.hora_entrada}" style="width:104px" title="Horário de entrada">
+        <input type="time" class="mini" id="hs-${f.id}" value="${f.hora_saida || '18:00'}" style="width:104px" title="Horário de saída">
+        <input type="text" class="mini" id="al-${f.id}" value="${f.almoco_min}" style="width:46px" title="Minutos de almoço">
+        <input type="text" class="mini" id="sal-${f.id}" value="${f.salario || 0}" style="width:78px" title="Salário do mês (R$)">
+        <input type="text" class="mini" id="hm-${f.id}" value="${f.horas_mes || 220}" style="width:58px" title="Carga horária do mês (horas) — usada no cálculo do desconto e como mínimo">
         <button class="secundario" style="padding:.3rem .7rem;font-size:.78rem" onclick="salvarConfig(${f.id})">Salvar</button>
       </div></td>
       <td><button class="secundario" style="padding:.35rem .9rem;font-size:.8rem" onclick="alternar(${f.id})">${f.ativo ? 'Desativar' : 'Reativar'}</button></td>
@@ -1095,10 +1133,13 @@ ${faltasPend.length ? `<div class="cartao" style="border-color:var(--line)">
   <label for="novo-pin">PIN (4 a 6 dígitos)</label>
   <input type="text" id="novo-pin" inputmode="numeric">
   <div style="display:flex;gap:14px;flex-wrap:wrap">
-    <div><label>Horário de entrada</label><input type="time" id="novo-he" value="08:00" style="width:140px"></div>
-    <div><label>Almoço (min)</label><input type="text" id="novo-al" value="60" style="width:90px"></div>
-    <div><label>Café (min)</label><input type="text" id="novo-ca" value="15" style="width:90px"></div>
+    <div><label>Horário de entrada</label><input type="time" id="novo-he" value="08:00" style="width:130px"></div>
+    <div><label>Horário de saída</label><input type="time" id="novo-hs" value="18:00" style="width:130px"></div>
+    <div><label>Almoço (min)</label><input type="text" id="novo-al" value="60" style="width:80px"></div>
+    <div><label>Salário do mês (R$)</label><input type="text" id="novo-sal" value="0" style="width:110px"></div>
+    <div><label>Carga do mês (horas)</label><input type="text" id="novo-hm" value="220" style="width:110px"></div>
   </div>
+  <p class="discreto" style="margin:.4rem 0 0">O salário e a carga do mês são usados só pra calcular o desconto — nunca aparecem pro colaborador.</p>
   <button onclick="cadastrar()">Cadastrar</button>
 </div>
 <div class="acoes">
@@ -1109,14 +1150,17 @@ ${faltasPend.length ? `<div class="cartao" style="border-color:var(--line)">
 function verEspelho(fid) { st.espelhoFid = fid; st.mes = mesAtual(); st.diaSel = null; st.tela = 'adminEspelho'; render(); }
 function verCalendario(fid) { st.espelhoFid = fid; st.mes = mesAtual(); st.diaSel = null; st.tela = 'adminCalendario'; render(); }
 function abonar(regId) { mut('/api/admin/abonar', { reg_id: regId }); }
+function compensar(regId) { mut('/api/admin/compensar', { reg_id: regId }); }
 function salvarConfig(fid) {
   const he = document.getElementById('he-'+fid).value;
+  const hs = document.getElementById('hs-'+fid).value;
   const al = parseInt(document.getElementById('al-'+fid).value, 10);
-  const ca = parseInt(document.getElementById('ca-'+fid).value, 10);
+  const sal = parseFloat((document.getElementById('sal-'+fid).value || '0').replace(',', '.')) || 0;
+  const hm = parseFloat((document.getElementById('hm-'+fid).value || '220').replace(',', '.')) || 220;
   const pin = document.getElementById('pin-'+fid).value.trim();
-  if (!he || isNaN(al) || isNaN(ca)) { flash('Preencha horário e minutos válidos.', 'erro'); render(); return; }
+  if (!he || !hs || isNaN(al)) { flash('Preencha os horários e os minutos de almoço.', 'erro'); render(); return; }
   if (!/^\d{4,6}$/.test(pin)) { flash('O PIN deve ter de 4 a 6 dígitos.', 'erro'); render(); return; }
-  mut('/api/admin/colaborador-config', { id: fid, pin, hora_entrada: he, almoco_min: al, cafe_min: ca }, 'Dados do colaborador atualizados.');
+  mut('/api/admin/colaborador-config', { id: fid, pin, hora_entrada: he, hora_saida: hs, almoco_min: al, salario: sal, horas_mes: hm }, 'Dados do colaborador atualizados.');
 }
 function salvarSenhaGestor() {
   const pin = document.getElementById('pin-gestor').value.trim();
@@ -1136,10 +1180,12 @@ function cadastrar() {
   const nome = document.getElementById('novo-nome').value.trim();
   const pin = document.getElementById('novo-pin').value.trim();
   const he = document.getElementById('novo-he').value || '08:00';
+  const hs = document.getElementById('novo-hs').value || '18:00';
   const al = parseInt(document.getElementById('novo-al').value, 10) || 60;
-  const ca = parseInt(document.getElementById('novo-ca').value, 10) || 15;
+  const sal = parseFloat((document.getElementById('novo-sal').value || '0').replace(',', '.')) || 0;
+  const hm = parseFloat((document.getElementById('novo-hm').value || '220').replace(',', '.')) || 220;
   if (!nome || !/^\d{4,6}$/.test(pin)) { flash('Informe um nome e um PIN numérico de 4 a 6 dígitos.', 'erro'); render(); return; }
-  mut('/api/admin/colaborador', { nome, pin, hora_entrada: he, almoco_min: al, cafe_min: ca }, nome + ' cadastrado(a) com sucesso.');
+  mut('/api/admin/colaborador', { nome, pin, hora_entrada: he, hora_saida: hs, almoco_min: al, salario: sal, horas_mes: hm }, nome + ' cadastrado(a) com sucesso.');
 }
 
 (async () => {

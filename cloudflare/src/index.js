@@ -165,9 +165,10 @@ async function handleApi(request, env, url) {
       if (!nome || !/^\d{4,6}$/.test(String(pin))) return json({ erro: "Nome e PIN de 4 a 6 dígitos." }, 400);
       try {
         await env.DB.prepare(
-          "INSERT INTO funcionarios (nome, pin, hora_entrada, almoco_min, cafe_min) VALUES (?,?,?,?,?)")
-          .bind(nome.trim(), String(pin), body.hora_entrada || "08:00",
-            parseInt(body.almoco_min) || 60, parseInt(body.cafe_min) || 15).run();
+          "INSERT INTO funcionarios (nome, pin, hora_entrada, hora_saida, almoco_min, cafe_min, salario, horas_mes) VALUES (?,?,?,?,?,?,?,?)")
+          .bind(nome.trim(), String(pin), body.hora_entrada || "08:00", body.hora_saida || "18:00",
+            parseInt(body.almoco_min) || 60, parseInt(body.cafe_min) || 15,
+            Number(body.salario) || 0, Number(body.horas_mes) || 220).run();
       } catch { return json({ erro: "Este PIN já está em uso." }, 400); }
       return json({ ok: true });
     }
@@ -179,8 +180,10 @@ async function handleApi(request, env, url) {
         const dono = await env.DB.prepare("SELECT 1 FROM funcionarios WHERE pin=? AND id<>?").bind(pin, body.id).first();
         if (dono) return json({ erro: "Este PIN já está em uso." }, 400);
       }
-      await env.DB.prepare("UPDATE funcionarios SET hora_entrada=?, almoco_min=?, cafe_min=? WHERE id=?")
-        .bind(body.hora_entrada || "08:00", parseInt(body.almoco_min) || 60, parseInt(body.cafe_min) || 15, body.id).run();
+      await env.DB.prepare(
+        "UPDATE funcionarios SET hora_entrada=?, hora_saida=?, almoco_min=?, salario=?, horas_mes=? WHERE id=?")
+        .bind(body.hora_entrada || "08:00", body.hora_saida || "18:00", parseInt(body.almoco_min) || 60,
+          Number(body.salario) || 0, Number(body.horas_mes) || 220, body.id).run();
       if (pin) await env.DB.prepare("UPDATE funcionarios SET pin=? WHERE id=?").bind(pin, body.id).run();
       return json({ ok: true });
     }
@@ -200,7 +203,18 @@ async function handleApi(request, env, url) {
     }
     if (path === "/api/admin/abonar" && method === "POST") {
       if (!(await auth("gestor"))) return json({ erro: "sessão" }, 401);
-      await env.DB.prepare("UPDATE registros SET abonado=1-abonado WHERE id=?").bind(body.reg_id).run();
+      // ao abonar, cancela a compensação (são exclusivos)
+      await env.DB.prepare(
+        "UPDATE registros SET abonado=1-abonado, compensar=CASE WHEN abonado=0 THEN 0 ELSE compensar END WHERE id=?")
+        .bind(body.reg_id).run();
+      return json({ ok: true });
+    }
+    if (path === "/api/admin/compensar" && method === "POST") {
+      if (!(await auth("gestor"))) return json({ erro: "sessão" }, 401);
+      // marcar "compensar na saída" cancela o abono (são exclusivos)
+      await env.DB.prepare(
+        "UPDATE registros SET compensar=1-compensar, abonado=CASE WHEN compensar=0 THEN 0 ELSE abonado END WHERE id=?")
+        .bind(body.reg_id).run();
       return json({ ok: true });
     }
     if (path === "/api/admin/contestacao" && method === "POST") {
@@ -237,9 +251,11 @@ async function handleApi(request, env, url) {
 }
 
 function pubFunc(f) {
+  // dados que o colaborador pode ver (salário e carga NÃO entram aqui)
   return {
     id: f.id, nome: f.nome, papel: f.papel, ativo: f.ativo,
-    hora_entrada: f.hora_entrada, almoco_min: f.almoco_min, cafe_min: f.cafe_min,
+    hora_entrada: f.hora_entrada, hora_saida: f.hora_saida,
+    almoco_min: f.almoco_min, cafe_min: f.cafe_min,
   };
 }
 

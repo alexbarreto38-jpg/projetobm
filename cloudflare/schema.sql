@@ -6,8 +6,11 @@ CREATE TABLE IF NOT EXISTS funcionarios (
   ativo        INTEGER NOT NULL DEFAULT 1,
   papel        TEXT NOT NULL DEFAULT 'colaborador',
   hora_entrada TEXT NOT NULL DEFAULT '08:00',
+  hora_saida   TEXT NOT NULL DEFAULT '18:00',
   almoco_min   INTEGER NOT NULL DEFAULT 60,
-  cafe_min     INTEGER NOT NULL DEFAULT 15
+  cafe_min     INTEGER NOT NULL DEFAULT 15,
+  salario      REAL NOT NULL DEFAULT 0,
+  horas_mes    REAL NOT NULL DEFAULT 220
 );
 
 CREATE TABLE IF NOT EXISTS registros (
@@ -18,6 +21,7 @@ CREATE TABLE IF NOT EXISTS registros (
   tipo               TEXT NOT NULL,
   foto               TEXT,
   abonado            INTEGER NOT NULL DEFAULT 0,
+  compensar          INTEGER NOT NULL DEFAULT 0,
   motivo             TEXT,
   contestacao        TEXT,
   contestacao_status TEXT
