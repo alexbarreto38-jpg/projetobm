@@ -44,6 +44,14 @@ CREATE TABLE IF NOT EXISTS notificacoes (
   mensagem       TEXT NOT NULL
 );
 
+-- Configurações gerais (chave/valor)
+CREATE TABLE IF NOT EXISTS config (
+  chave TEXT PRIMARY KEY,
+  valor TEXT
+);
+-- Código para liberar o aparelho da empresa a bater ponto (troque no painel)
+INSERT OR IGNORE INTO config (chave, valor) VALUES ('aparelho_codigo', '4321');
+
 -- Gestor inicial (troque o PIN depois no painel)
 INSERT OR IGNORE INTO funcionarios (id, nome, pin, papel, ativo)
 VALUES (1, 'Alex', '1000', 'gestor', 1);

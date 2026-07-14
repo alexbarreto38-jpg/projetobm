@@ -113,6 +113,15 @@ async function handleApi(request, env, url) {
       return json({ token, nome: g ? g.nome : "Gestor" });
     }
 
+    // ---- liberar o aparelho da empresa (bater ponto) com o código do gestor
+    if (path === "/api/liberar-aparelho" && method === "POST") {
+      const c = await env.DB.prepare("SELECT valor FROM config WHERE chave='aparelho_codigo'").first();
+      const codigo = c ? c.valor : "4321";
+      if (String(body.codigo || "") !== String(codigo)) return json({ erro: "Código incorreto." }, 401);
+      const token = await criarToken(secret, { role: "dispositivo", exp: Date.now() + 365 * 24 * 3600e3 });
+      return json({ token });
+    }
+
     // ---- colaborador
     if (path === "/api/meu" && method === "GET") {
       const p = await auth("colaborador");
@@ -122,6 +131,9 @@ async function handleApi(request, env, url) {
     if (path === "/api/bater" && method === "POST") {
       const p = await auth("colaborador");
       if (!p) return json({ erro: "sessão" }, 401);
+      // trava do aparelho: só um aparelho liberado pode bater ponto
+      const disp = await lerToken(secret, request.headers.get("x-dispositivo"));
+      if (!disp || disp.role !== "dispositivo") return json({ erro: "aparelho-nao-liberado" }, 403);
       return await baterPonto(env, p.fid, body);
     }
     if (path === "/api/contestar" && method === "POST") {
@@ -243,6 +255,15 @@ async function handleApi(request, env, url) {
       await env.DB.prepare("DELETE FROM notificacoes WHERE id=?").bind(body.id).run();
       return json({ ok: true });
     }
+    if (path === "/api/admin/aparelho-codigo" && method === "POST") {
+      if (!(await auth("gestor"))) return json({ erro: "sessão" }, 401);
+      const codigo = String(body.codigo || "").trim();
+      if (!codigo) return json({ erro: "Informe um código." }, 400);
+      await env.DB.prepare(
+        "INSERT INTO config (chave, valor) VALUES ('aparelho_codigo', ?) ON CONFLICT(chave) DO UPDATE SET valor=?")
+        .bind(codigo, codigo).run();
+      return json({ ok: true });
+    }
 
     return json({ erro: "rota não encontrada" }, 404);
   } catch (e) {
@@ -273,7 +294,8 @@ async function estadoAdmin(env) {
   const registros = (await env.DB.prepare("SELECT * FROM registros ORDER BY dia, horario").all()).results;
   const justificativas = (await env.DB.prepare("SELECT * FROM justificativas").all()).results;
   const notificacoes = (await env.DB.prepare("SELECT * FROM notificacoes ORDER BY horario").all()).results;
-  return { funcionarios, registros, justificativas, notificacoes };
+  const cfg = await env.DB.prepare("SELECT valor FROM config WHERE chave='aparelho_codigo'").first();
+  return { funcionarios, registros, justificativas, notificacoes, aparelho_codigo: cfg ? cfg.valor : "4321" };
 }
 
 async function baterPonto(env, fid, body) {

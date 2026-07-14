@@ -276,10 +276,15 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>'
 let db = { funcionarios: [], registros: [], justificativas: [], notificacoes: [] };
 let token = null;
 let gestorNome = 'Gestor';
+let aparelhoCodigo = '';
+// token que prova que ESTE aparelho foi liberado pela empresa (fica salvo no aparelho)
+let dispositivoToken = null;
+try { dispositivoToken = localStorage.getItem('ponto_dispositivo'); } catch (e) {}
 
 async function api(method, path, body) {
   const opt = { method, headers: {} };
   if (token) opt.headers['authorization'] = 'Bearer ' + token;
+  if (dispositivoToken) opt.headers['x-dispositivo'] = dispositivoToken;
   if (body) { opt.headers['content-type'] = 'application/json'; opt.body = JSON.stringify(body); }
   const res = await fetch(path, opt);
   let data = null; try { data = await res.json(); } catch (e) {}
@@ -297,6 +302,7 @@ function aplicarColab(e) {
 function aplicarAdmin(e) {
   db = { funcionarios: e.funcionarios || [], registros: e.registros || [],
     justificativas: e.justificativas || [], notificacoes: e.notificacoes || [] };
+  aparelhoCodigo = e.aparelho_codigo || aparelhoCodigo;
 }
 function recarregar() {
   if (st.adminOk) return api('GET', '/api/admin').then(aplicarAdmin);
@@ -603,6 +609,11 @@ function baterAgora() {
   const campoMotivo = document.getElementById('motivo');
   const motivo = avisado && campoMotivo ? campoMotivo.value.trim() : '';
   api('POST', '/api/bater', { tipo, foto, avisado, motivo }).then(res => {
+    if (res.erro === 'aparelho-nao-liberado') {
+      dispositivoToken = null; try { localStorage.removeItem('ponto_dispositivo'); } catch (e) {}
+      flash('Este aparelho não está liberado para bater ponto.', 'erro');
+      st.tela = 'ativarAparelho'; render(); return;
+    }
     if (res.erro) { flash(res.erro, 'erro'); st.tela = 'painel'; render(); return; }
     recarregar().then(() => {
       const f = funcPorId(st.funcId);
@@ -1099,6 +1110,16 @@ ${faltasPend.length ? `<div class="cartao" style="border-color:var(--line)">
   </div>` : ''}
 </div>
 <div class="cartao">
+  <span class="eyebrow">Segurança <b>//</b> aparelho da empresa</span>
+  <h1>Liberação do <span class="gold">aparelho</span></h1>
+  <p class="discreto" style="margin-bottom:1rem">Só o aparelho que tiver este código consegue <strong>bater ponto</strong>. No aparelho da empresa, abra o app (o link principal), digite este código <strong>uma vez</strong> e pronto. Se alguém pegar o link em outro celular, não vai conseguir bater.</p>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <input type="text" class="mini" id="cod-aparelho" value="${esc(aparelhoCodigo)}" style="width:130px;font-size:1.05rem;letter-spacing:.15em;text-align:center" title="Código de liberação do aparelho">
+    <button class="secundario" style="padding:.35rem .9rem;font-size:.8rem" onclick="salvarCodigoAparelho()">Salvar código</button>
+  </div>
+  <p class="discreto" style="margin-top:.6rem">Se o código vazar, troque aqui: os aparelhos já liberados continuam funcionando, mas ninguém novo consegue liberar com o código antigo.</p>
+</div>
+<div class="cartao">
   <span class="eyebrow">Notificações <b>//</b> app do colaborador</span>
   <h1>Notificações</h1>
   <p class="discreto" style="margin-bottom:1rem">Agende uma mensagem para aparecer no app do colaborador em um horário.</p>
@@ -1167,6 +1188,11 @@ function salvarSenhaGestor() {
   if (!/^\d{4,6}$/.test(pin)) { flash('O PIN deve ter de 4 a 6 dígitos.', 'erro'); render(); return; }
   mut('/api/admin/gestor-senha', { pin }, 'Sua senha de acesso foi atualizada.');
 }
+function salvarCodigoAparelho() {
+  const codigo = (document.getElementById('cod-aparelho').value || '').trim();
+  if (!codigo) { flash('Digite um código.', 'erro'); render(); return; }
+  mut('/api/admin/aparelho-codigo', { codigo }, 'Código do aparelho atualizado.');
+}
 function criarNotificacao() {
   const fid = +document.getElementById('notif-func').value;
   const hora = document.getElementById('notif-hora').value;
@@ -1188,10 +1214,40 @@ function cadastrar() {
   mut('/api/admin/colaborador', { nome, pin, hora_entrada: he, hora_saida: hs, almoco_min: al, salario: sal, horas_mes: hm }, nome + ' cadastrado(a) com sucesso.');
 }
 
+TELAS.ativarAparelho = () => `
+<div class="cartao" style="max-width:440px;margin:0 auto;text-align:center">
+  <div class="i3d i3d--dark"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
+  <span class="eyebrow">Aparelho <b>//</b> liberação</span>
+  <h1>Liberar este <span class="gold">aparelho</span></h1>
+  <p class="discreto" style="margin:.6rem 0 1.2rem">Só o aparelho da empresa pode bater ponto. Digite o código de liberação (o gestor tem ele no painel). Você faz isso <strong>uma vez só</strong> neste aparelho.</p>
+  <form onsubmit="liberarAparelho(event)" style="text-align:left">
+    <label for="cod-disp">Código de liberação</label>
+    <input type="text" id="cod-disp" inputmode="numeric" autocomplete="off"
+      style="text-align:center;font-size:1.3rem;letter-spacing:.3em">
+    <button type="submit" style="width:100%;margin-top:1rem">Liberar aparelho</button>
+  </form>
+</div>`;
+function liberarAparelho(ev) {
+  ev.preventDefault();
+  const codigo = (document.getElementById('cod-disp').value || '').trim();
+  if (!codigo) { flash('Digite o código de liberação.', 'erro'); render(); return; }
+  api('POST', '/api/liberar-aparelho', { codigo }).then(res => {
+    if (res.erro || !res.token) { flash(res.erro || 'Não foi possível liberar.', 'erro'); render(); return; }
+    dispositivoToken = res.token;
+    try { localStorage.setItem('ponto_dispositivo', res.token); } catch (e) {}
+    flash('Aparelho liberado! Agora é só bater o ponto.', 'ok');
+    st.tela = 'pin'; render();
+  });
+}
+
 (async () => {
   try {
     if (MODO === 'gestor') { const info = await api('GET', '/api/info'); gestorNome = info.gestor_nome || 'Gestor'; st.tela = 'gestorLogin'; }
-    else { const r = await api('GET', '/api/pessoas'); db.funcionarios = r.pessoas || []; st.tela = 'pin'; }
+    else {
+      const r = await api('GET', '/api/pessoas'); db.funcionarios = r.pessoas || [];
+      // no aparelho da empresa, exige liberação uma vez antes de bater ponto
+      st.tela = (MODO === 'empresa' && !dispositivoToken) ? 'ativarAparelho' : 'pin';
+    }
   } catch (e) {}
   render();
 })();
