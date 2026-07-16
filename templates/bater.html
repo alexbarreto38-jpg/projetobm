@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block titulo %}{{ rotulo }} — Bater Ponto da WISE{% endblock %}
+{% block conteudo %}
+<div class="cartao" style="text-align:center">
+  <span class="eyebrow">{{ func.nome }} <b>//</b> {{ rotulo }}</span>
+  <h1>Bater <span class="gold">{{ rotulo|lower }}</span></h1>
+  {% if hora_prevista %}
+  <p class="discreto">Horário previsto: <span class="hora">{{ hora_prevista }}</span></p>
+  {% endif %}
+
+  <p id="relogio" class="num-grande" style="margin:1rem 0 .2rem">--:--:--</p>
+  <p class="discreto" style="margin-bottom:1.2rem">A batida usa a hora do servidor.</p>
+
+  <div id="cam-area" style="margin:0 auto 1rem;max-width:320px">
+    <video id="video" autoplay playsinline muted
+           style="width:100%;border-radius:16px;border:1px solid var(--line);display:none"></video>
+    <p id="cam-aviso" class="discreto">Ativando a câmera…</p>
+  </div>
+
+  <form method="post" id="form-bater">
+    <input type="hidden" name="foto" id="foto">
+    {% if pode_atrasar %}
+    <label class="chk" style="display:flex;align-items:center;gap:.6rem;justify-content:center;
+           font-family:var(--body);text-transform:none;letter-spacing:0;font-size:.92rem;
+           color:var(--zinc);margin-bottom:1rem;cursor:pointer">
+      <input type="checkbox" name="avisado" value="1"
+             onchange="document.getElementById('motivo-box').style.display=this.checked?'block':'none';
+                       if(this.checked)document.getElementById('motivo').focus()"
+             style="width:18px;height:18px;accent-color:var(--gold)">
+      Avisei o gestor sobre o atraso e fui autorizado(a)
+    </label>
+    <div id="motivo-box" style="display:none;max-width:380px;margin:0 auto 1.2rem;text-align:left">
+      <label for="motivo">Qual foi o motivo?</label>
+      <textarea id="motivo" name="motivo" rows="2" maxlength="200"
+                placeholder="Ex.: consulta médica, avisei ontem"
+                style="width:100%;padding:.65rem .8rem;font-size:.95rem;font-family:var(--body);
+                       background:var(--ink2);color:var(--ivory);border:1px solid var(--line-soft);
+                       border-radius:12px;resize:vertical"></textarea>
+    </div>
+    {% endif %}
+    <button type="submit" style="font-size:1.1rem;padding:1rem 2.8rem">
+      Bater ponto agora
+    </button>
+  </form>
+  <p style="margin-top:1rem"><a href="{{ url_for('painel') }}" class="discreto">← Voltar sem bater</a></p>
+</div>
+
+<canvas id="canvas" style="display:none"></canvas>
+<script>
+  // relógio ao vivo
+  function tick(){
+    const d = new Date();
+    document.getElementById('relogio').textContent =
+      d.toLocaleTimeString('pt-BR', {hour12:false});
+  }
+  tick(); setInterval(tick, 1000);
+
+  // câmera
+  const video = document.getElementById('video');
+  const aviso = document.getElementById('cam-aviso');
+  let camOk = false;
+  navigator.mediaDevices.getUserMedia({video: {facingMode: 'user', width: 640}})
+    .then(stream => {
+      video.srcObject = stream;
+      video.style.display = 'block';
+      aviso.textContent = 'A foto será tirada no momento da batida.';
+      camOk = true;
+    })
+    .catch(() => {
+      aviso.textContent = 'Câmera indisponível — a batida será registrada sem foto.';
+    });
+
+  // captura a foto no envio
+  document.getElementById('form-bater').addEventListener('submit', () => {
+    if (!camOk) return;
+    const canvas = document.getElementById('canvas');
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    document.getElementById('foto').value = canvas.toDataURL('image/jpeg', 0.7);
+  });
+</script>
+{% endblock %}

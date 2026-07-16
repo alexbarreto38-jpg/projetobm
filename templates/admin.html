@@ -1,0 +1,337 @@
+{% extends "base.html" %}
+{% from "_macros.html" import situacao_pill %}
+{% block titulo %}Gestor — Bater Ponto da WISE{% endblock %}
+{% block conteudo %}
+<div class="cartao">
+  <span class="eyebrow">Painel <b>//</b> {{ data_hoje }}</span>
+  <h1>Equipe <span class="gold">hoje</span></h1>
+  {% if hoje %}
+  <div style="overflow-x:auto">
+  <table style="margin-top:.6rem;min-width:640px">
+    <thead><tr>
+      <th>Colaborador</th><th>Situação</th>
+      <th>Entrada</th><th>Almoço</th><th>Volta almoço</th>
+      <th>Café</th><th>Volta café</th><th>Saída</th>
+      <th>Horas</th><th>Perdido</th>
+    </tr></thead>
+    <tbody>
+      {% for h in hoje %}
+      <tr>
+        <td><a href="{{ url_for('admin_calendario', func_id=h.id) }}" class="gold">{{ h.nome }}</a></td>
+        <td>
+          {% if h.classe == 'trabalhando' %}<span class="pill ativo">{{ h.rotulo }}</span>
+          {% elif h.classe == 'pausa' %}<span class="pill pausa">{{ h.rotulo }}</span>
+          {% elif h.classe == 'fora' %}<span class="pill inativo">{{ h.rotulo }}</span>
+          {% else %}<span class="discreto">{{ h.rotulo }}</span>{% endif %}
+        </td>
+        {% for hora in h.etapas %}
+        <td class="hora">{% if hora %}{{ hora }}{% else %}<span class="discreto">—</span>{% endif %}</td>
+        {% endfor %}
+        <td class="hora">{{ h.horas }}</td>
+        <td class="hora" style="color:{% if h.perdido %}#f0a8a8{% else %}var(--zinc-dim){% endif %}">
+          {{ fmt_minutos(h.perdido) if h.perdido else '—' }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="discreto" style="margin-top:.8rem">
+    📅 Clique no nome do colaborador para abrir o <strong>calendário</strong> dele.
+    Quem está com a jornada em aberto tem as horas contadas até agora.
+  </p>
+  {% else %}
+  <p class="discreto">Nenhum colaborador ativo ainda — cadastre abaixo.</p>
+  {% endif %}
+</div>
+{% if contestacoes %}
+<div class="cartao" style="border-color:var(--line)">
+  <span class="eyebrow">Contestações <b>//</b> aguardando você</span>
+  <h2 style="margin-top:.3rem">Contestações pendentes</h2>
+  <div style="overflow-x:auto">
+  <table style="margin-top:.6rem;min-width:560px">
+    <thead><tr><th>Colaborador</th><th>Dia / Evento</th><th>Motivo do colaborador</th><th>Excedido</th><th></th></tr></thead>
+    <tbody>
+      {% for a in contestacoes %}
+      <tr>
+        <td>{{ a.nome }}</td>
+        <td>{{ a.data }}<br><span class="discreto">{{ a.evento }} ({{ a.detalhe }})</span></td>
+        <td>“{{ a.contestacao }}”</td>
+        <td class="hora">{{ fmt_minutos(a.minutos) }}</td>
+        <td style="white-space:nowrap">
+          <form method="post" action="{{ url_for('responder_contestacao', reg_id=a.reg_id, acao='aprovar') }}" style="display:inline">
+            <button style="padding:.35rem .8rem;font-size:.78rem">Aprovar</button>
+          </form>
+          <form method="post" action="{{ url_for('responder_contestacao', reg_id=a.reg_id, acao='recusar') }}" style="display:inline">
+            <button class="secundario" style="padding:.35rem .8rem;font-size:.78rem">Recusar</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="discreto" style="margin-top:.8rem">
+    <strong>Aprovar</strong> abona o tempo (não desconta). <strong>Recusar</strong> mantém o desconto.
+  </p>
+</div>
+{% endif %}
+{% if faltas_pend %}
+<div class="cartao" style="border-color:var(--line)">
+  <span class="eyebrow">Faltas <b>//</b> aguardando você</span>
+  <h2 style="margin-top:.3rem">Justificativas de falta</h2>
+  <div style="overflow-x:auto">
+  <table style="margin-top:.6rem;min-width:520px">
+    <thead><tr><th>Colaborador</th><th>Dia</th><th>Motivo do colaborador</th><th></th></tr></thead>
+    <tbody>
+      {% for j in faltas_pend %}
+      <tr>
+        <td>{{ j.nome }}</td>
+        <td>{{ j.data }}</td>
+        <td>“{{ j.texto }}”</td>
+        <td style="white-space:nowrap">
+          <form method="post" action="{{ url_for('responder_justificativa', jid=j.id, acao='aprovar') }}" style="display:inline">
+            <input type="hidden" name="voltar" value="{{ url_for('admin') }}">
+            <button style="padding:.35rem .8rem;font-size:.78rem">Aprovar</button>
+          </form>
+          <form method="post" action="{{ url_for('responder_justificativa', jid=j.id, acao='recusar') }}" style="display:inline">
+            <input type="hidden" name="voltar" value="{{ url_for('admin') }}">
+            <button class="secundario" style="padding:.35rem .8rem;font-size:.78rem">Recusar</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="discreto" style="margin-top:.8rem">
+    Faltas justificadas pelo celular do colaborador — sem precisar vir ao escritório.
+  </p>
+</div>
+{% endif %}
+{% if funcionarios %}
+<div class="cartao">
+  <span class="eyebrow">Calendário <b>//</b> por colaborador</span>
+  <h1>Calendário</h1>
+  <p class="discreto" style="margin-bottom:1rem">Clique em um colaborador para ver o calendário do mês dele.</p>
+  <div class="cal-pessoas">
+    {% for f in funcionarios if f.ativo %}
+    <a class="cal-pessoa" href="{{ url_for('admin_calendario', func_id=f.id) }}">
+      <span class="avatar">{{ f.nome[0]|upper }}</span>
+      <span class="p-nome">{{ f.nome }}</span>
+      <span class="cal-pessoa-cta">Ver calendário →</span>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="cartao">
+  <span class="eyebrow">Pontualidade <b>//</b> hoje</span>
+  <h2 style="margin-top:.3rem">Atrasos do dia</h2>
+  {% if atrasos_hoje %}
+  <table>
+    <thead><tr><th>Colaborador</th><th>Evento</th><th>Excedido</th><th>Situação</th><th></th></tr></thead>
+    <tbody>
+      {% for a in atrasos_hoje %}
+      <tr>
+        <td>{{ a.nome }}</td>
+        <td>{{ a.evento }} <span class="discreto">({{ a.detalhe }})</span>
+          {% if a.motivo %}<br><span class="discreto">Motivo: “{{ a.motivo }}”</span>{% endif %}
+          {% if a.contestacao %}<br><span class="discreto">Contestação: “{{ a.contestacao }}”</span>{% endif %}
+        </td>
+        <td class="hora">{{ fmt_minutos(a.minutos) }}</td>
+        <td>{{ situacao_pill(a) }}</td>
+        <td>
+          <form method="post" action="{{ url_for('abonar', reg_id=a.reg_id) }}">
+            <input type="hidden" name="voltar" value="{{ url_for('admin') }}">
+            <button class="secundario" style="padding:.3rem .8rem;font-size:.78rem">
+              {{ 'Remover abono' if a.abonado else 'Abonar' }}
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="discreto" style="margin-top:.8rem">
+    "Avisou / abonado" = o colaborador marcou que te avisou e você autorizou, ou você abonou por aqui.
+    Atrasos descontados entram no tempo perdido do mês.
+  </p>
+  {% else %}
+  <p class="discreto">✦ Nenhum atraso registrado hoje.</p>
+  {% endif %}
+</div>
+
+<div class="cartao">
+  <span class="eyebrow">Faltas <b>//</b> hoje</span>
+  <h2 style="margin-top:.3rem">Faltas do dia</h2>
+  {% if faltas_dia %}
+  <table>
+    <thead><tr><th>Colaborador</th><th>Situação</th></tr></thead>
+    <tbody>
+      {% for x in faltas_dia %}
+      <tr>
+        <td><a href="{{ url_for('admin_calendario', func_id=x.id) }}" class="gold">{{ x.nome }}</a></td>
+        <td>
+          {% if x.justificativa %}
+            {% if x.justificativa.status == 'aprovada' %}<span class="pill ativo">falta abonada</span>
+            {% elif x.justificativa.status == 'recusada' %}<span class="pill atraso">falta (recusada)</span>
+            {% else %}<span class="pill pausa">justificou — em análise</span>{% endif %}
+            <br><span class="discreto">“{{ x.justificativa.texto }}”</span>
+          {% else %}
+            <span class="pill atraso">sem registro</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="discreto" style="margin-top:.8rem">
+    Colaboradores ativos que ainda não bateram ponto hoje. Clique no nome para ver o calendário.
+  </p>
+  {% else %}
+  <p class="discreto">✦ Todos registraram ponto hoje.</p>
+  {% endif %}
+</div>
+
+<div class="cartao">
+  <span class="eyebrow">Gestão <b>//</b> equipe</span>
+  <h1>Colaboradores</h1>
+  {% if funcionarios %}
+  <table style="margin-top:.6rem">
+    <thead><tr><th>Nome</th><th>Status</th><th>Senha / Entrada / Almoço / Café</th><th></th><th></th></tr></thead>
+    <tbody>
+      {% for f in funcionarios %}
+      <tr>
+        <td>{{ f.nome }}<br>
+          <a href="{{ url_for('espelho', func_id=f.id) }}" class="gold" style="font-size:.85rem">Espelho</a>
+          <span class="discreto">·</span>
+          <a href="{{ url_for('admin_calendario', func_id=f.id) }}" class="gold" style="font-size:.85rem">Calendário</a></td>
+        <td>
+          {% if f.ativo %}<span class="pill ativo">ativo</span>
+          {% else %}<span class="pill inativo">inativo</span>{% endif %}
+        </td>
+        <td>
+          <form method="post" action="{{ url_for('config_funcionario', func_id=f.id) }}"
+                style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <input type="text" name="pin" value="{{ f.pin }}" class="mini" style="width:74px"
+                   inputmode="numeric" pattern="\d{4,6}" title="PIN de acesso (4 a 6 dígitos)">
+            <input type="time" name="hora_entrada" value="{{ f.hora_entrada }}" class="mini">
+            <input type="text" name="almoco_min" value="{{ f.almoco_min }}" class="mini" style="width:52px" title="Minutos de almoço">
+            <input type="text" name="cafe_min" value="{{ f.cafe_min }}" class="mini" style="width:52px" title="Minutos de café">
+            <button class="secundario" style="padding:.3rem .7rem;font-size:.78rem">Salvar</button>
+          </form>
+        </td>
+        <td>
+          <form method="post" action="{{ url_for('alternar_funcionario', func_id=f.id) }}">
+            <button class="secundario" style="padding:.35rem .9rem;font-size:.8rem">
+              {{ 'Desativar' if f.ativo else 'Reativar' }}
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="discreto" style="margin-top:.8rem">
+    O primeiro campo é a <strong>senha (PIN)</strong> — altere e clique em Salvar para
+    definir a senha do colaborador. Entrada = horário previsto; Almoço e Café = minutos de pausa.
+  </p>
+  {% if gestor %}
+  <div style="margin-top:1.4rem;padding-top:1.2rem;border-top:1px solid var(--line-soft)">
+    <h2 style="font-size:1rem">Minha senha de acesso ({{ gestor.nome }})</h2>
+    <form method="post" action="{{ url_for('minha_senha') }}"
+          style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:.5rem">
+      <input type="text" name="pin" value="{{ gestor.pin }}" class="mini" style="width:90px"
+             inputmode="numeric" pattern="\d{4,6}" title="Seu PIN de gestor">
+      <button class="secundario" style="padding:.35rem .9rem;font-size:.8rem">Salvar minha senha</button>
+      <span class="discreto">É o PIN que abre o seu painel na tela inicial.</span>
+    </form>
+  </div>
+  {% endif %}
+  {% else %}
+  <p class="discreto">Nenhum colaborador cadastrado ainda.</p>
+  {% endif %}
+</div>
+
+<div class="cartao">
+  <span class="eyebrow">Notificações <b>//</b> app do colaborador</span>
+  <h1>Notificações</h1>
+  <p class="discreto" style="margin-bottom:1rem">Agende uma mensagem para aparecer no app do colaborador em um horário.</p>
+  <form method="post" action="{{ url_for('nova_notificacao') }}">
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:end">
+      <div>
+        <label for="notif-func">Colaborador</label>
+        <select id="notif-func" name="funcionario_id"
+                style="min-width:150px;padding:.55rem .7rem;font-family:var(--body);font-size:.95rem;background:var(--ink2);color:var(--ivory);border:1px solid var(--line-soft);border-radius:10px">
+          {% for f in funcionarios if f.ativo %}<option value="{{ f.id }}">{{ f.nome }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="notif-hora">Horário</label>
+        <input type="time" id="notif-hora" name="horario" value="08:00">
+      </div>
+    </div>
+    <label for="notif-msg">Mensagem</label>
+    <textarea id="notif-msg" name="mensagem" rows="2" maxlength="200" required
+              placeholder="Ex.: Reunião de equipe às 14h, não se esqueça."
+              style="width:100%;max-width:480px;padding:.6rem .75rem;font-family:var(--body);font-size:.95rem;background:var(--ink2);color:var(--ivory);border:1px solid var(--line-soft);border-radius:10px;resize:vertical"></textarea>
+    <div><button type="submit">Agendar notificação</button></div>
+  </form>
+  {% if notificacoes %}
+  <div style="overflow-x:auto;margin-top:1.2rem">
+  <table>
+    <thead><tr><th>Colaborador</th><th>Horário</th><th>Mensagem</th><th></th></tr></thead>
+    <tbody>
+      {% for n in notificacoes %}
+      <tr>
+        <td>{{ n.nome }}</td>
+        <td class="hora">{{ n.horario }}</td>
+        <td>{{ n.mensagem }}</td>
+        <td>
+          <form method="post" action="{{ url_for('remover_notificacao', nid=n.id) }}">
+            <button class="secundario" style="padding:.3rem .8rem;font-size:.78rem">Remover</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="discreto" style="margin-top:1rem">Nenhuma notificação agendada.</p>
+  {% endif %}
+</div>
+
+<div class="cartao">
+  <h2>Cadastrar colaborador</h2>
+  <form method="post" action="{{ url_for('novo_funcionario') }}">
+    <label for="nome">Nome</label>
+    <input type="text" id="nome" name="nome" required>
+    <label for="pin">PIN (4 a 6 dígitos — usado para bater ponto)</label>
+    <input type="text" id="pin" name="pin" inputmode="numeric" pattern="\d{4,6}" required>
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      <div>
+        <label for="hora_entrada">Horário de entrada</label>
+        <input type="time" id="hora_entrada" name="hora_entrada" value="08:00">
+      </div>
+      <div>
+        <label for="almoco_min">Almoço (min)</label>
+        <input type="text" id="almoco_min" name="almoco_min" value="60" style="width:90px">
+      </div>
+      <div>
+        <label for="cafe_min">Café (min)</label>
+        <input type="text" id="cafe_min" name="cafe_min" value="15" style="width:90px">
+      </div>
+    </div>
+    <button type="submit">Cadastrar</button>
+  </form>
+</div>
+
+<style>
+  main{max-width:1080px}
+  input.mini{margin-bottom:0;padding:.35rem .5rem;font-size:.85rem;border-radius:8px}
+  input[type=time]{color-scheme:dark}
+</style>
+{% endblock %}

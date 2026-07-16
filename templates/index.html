@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block conteudo %}
+<div class="cartao" style="text-align:center">
+  <div class="i3d i3d--gold">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+  </div>
+  <h1>Quem é <span class="gold">você</span>?</h1>
+  <p class="discreto">
+    {% if modo == 'colaborador' %}Toque no seu nome para ver suas horas.
+    {% else %}Toque no seu nome e digite o PIN.{% endif %}
+  </p>
+</div>
+
+<div class="pessoas">
+  {% for p in pessoas %}
+  <a class="pessoa"
+     href="{{ url_for('meu_acessar', func_id=p.id) if modo == 'colaborador' else url_for('acessar', func_id=p.id) }}">
+    <span class="avatar">{{ p.nome[0]|upper }}</span>
+    <span class="p-nome">{{ p.nome }}</span>
+    <span class="pill gestor-pill">Colaborador</span>
+  </a>
+  {% endfor %}
+</div>
+
+<style>
+  .pessoas{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px}
+  .pessoa{background:var(--panel);border:1px solid var(--line-soft);border-radius:20px;
+    padding:24px 16px;display:flex;flex-direction:column;align-items:center;gap:10px;
+    transition:.25s cubic-bezier(.2,.7,.2,1)}
+  .pessoa:hover{transform:translateY(-4px);border-color:var(--gold);
+    box-shadow:0 20px 40px -24px rgba(0,0,0,.9)}
+  .pessoa .avatar{width:60px;height:60px;border-radius:50%;display:grid;place-items:center;
+    font-family:var(--disp);font-weight:800;font-size:1.5rem;color:#241808;
+    background:linear-gradient(155deg,var(--gold-hi),var(--gold) 52%,var(--gold-deep));
+    box-shadow:inset 0 2px 0 rgba(255,255,255,.6)}
+  .pessoa--gestor .avatar{color:var(--gold);
+    background:linear-gradient(155deg,#272935,#16171F 55%,#0C0D13);
+    box-shadow:inset 0 2px 0 rgba(255,255,255,.1),0 0 0 2px rgba(245,197,61,.35)}
+  .p-nome{font-family:var(--disp);font-weight:700;font-size:1.05rem}
+  .gestor-pill{background:rgba(245,197,61,.12);border-color:var(--line);color:var(--gold)}
+</style>
+{% endblock %}

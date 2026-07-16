@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block titulo %}Área do gestor — Bater Ponto da WISE{% endblock %}
+{% block conteudo %}
+<div class="cartao" style="max-width:420px;margin:0 auto;text-align:center">
+  <div class="i3d i3d--dark">
+    <svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+  </div>
+  <span class="eyebrow">Acesso restrito <b>//</b> gestão</span>
+  <h1>Área do <span class="gold">gestor</span></h1>
+  <form method="post" style="margin-top:1rem;text-align:left">
+    <label for="senha">Senha</label>
+    <input type="password" id="senha" name="senha" required autofocus>
+    <div style="text-align:center"><button type="submit">Entrar</button></div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,19 @@
+name = "ponto-wise"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+# banco D1 (o database_id é preenchido ao criar o banco — veja CLOUDFLARE.md)
+[[d1_databases]]
+binding = "DB"
+database_name = "ponto-wise"
+database_id = "PREENCHER_APOS_CRIAR"
+
+# arquivos estáticos (a interface)
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[vars]
+# Troque no painel da Cloudflare (Settings > Variables) por valores seus:
+PONTO_SECRET = "troque-esta-chave"
+PONTO_ADMIN_SENHA = "admin"
