@@ -566,7 +566,7 @@ TELAS.bater = () => {
     <input type="checkbox" id="avisado" style="width:18px;height:18px;accent-color:var(--gold);margin:0"
            onchange="document.getElementById('motivo-box').style.display=this.checked?'block':'none';
                      if(this.checked)document.getElementById('motivo').focus()">
-    Avisei o gestor sobre o atraso e fui autorizado(a)
+    Avisar o gestor sobre este atraso (ele decide se abona)
   </label>
   <div id="motivo-box" style="display:none;max-width:380px;margin:0 auto 1.2rem;text-align:left">
     <label for="motivo">Qual foi o motivo?</label>
@@ -630,6 +630,7 @@ function situacaoPill(r) {
   if (r.compensar) return '<span class="pill pausa">a compensar na saída</span>';
   if (r.contestacao_status === 'pendente') return '<span class="pill pausa">contestação em análise</span>';
   if (r.contestacao_status === 'recusada') return '<span class="pill atraso">descontado</span> <span class="discreto">(recusada)</span>';
+  if (r.motivo) return '<span class="pill pausa">avisou — aguardando você</span> <span class="discreto">(descontando até decidir)</span>';
   return '<span class="pill atraso">descontado</span>';
 }
 function contestarForm(r) {

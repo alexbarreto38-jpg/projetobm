@@ -307,16 +307,18 @@ async function baterPonto(env, fid, body) {
   const tipo = body.tipo;
   if (!(PROXIMOS[ultimo] || []).includes(tipo)) return json({ erro: "Esta etapa não está disponível agora." }, 400);
 
-  let abonado = body.avisado ? 1 : 0;
-  let motivo = abonado ? (body.motivo || "").trim() || null : null;
-  if (!abonado && (tipo === "volta_almoco" || tipo === "volta_cafe")) {
+  // o aviso do colaborador NÃO abona sozinho: guarda o motivo e fica pendente
+  // pro gestor decidir (Abonar / Compensar / manter desconto).
+  let motivo = body.avisado ? ((body.motivo || "").trim() || null) : null;
+  // se avisou na saída do almoço/café, leva o motivo para a volta (onde fica o atraso)
+  if (!motivo && (tipo === "volta_almoco" || tipo === "volta_cafe")) {
     const par = tipo === "volta_almoco" ? "saida_almoco" : "saida_cafe";
-    const r = regs.find((x) => x.tipo === par && x.abonado);
-    if (r) { abonado = 1; motivo = r.motivo; }
+    const r = regs.find((x) => x.tipo === par && x.motivo);
+    if (r) motivo = r.motivo;
   }
   await env.DB.prepare(
-    "INSERT INTO registros (funcionario_id, dia, horario, tipo, foto, abonado, motivo) VALUES (?,?,?,?,?,?,?)")
-    .bind(fid, dia, horario, tipo, body.foto || null, abonado, motivo).run();
+    "INSERT INTO registros (funcionario_id, dia, horario, tipo, foto, abonado, motivo) VALUES (?,?,?,?,?,0,?)")
+    .bind(fid, dia, horario, tipo, body.foto || null, motivo).run();
   return json({ ok: true, horario });
 }
 
