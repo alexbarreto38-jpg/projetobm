@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gerador de Personagens IA</title>
+<style>
+  :root{
+    --bg:#0e1116; --card:#161b22; --card2:#1c232d; --border:#2a3441;
+    --text:#e6edf3; --muted:#8b98a5; --accent:#7c5cff; --accent2:#00d3a7;
+    --shadow:0 8px 24px rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    background:radial-gradient(1200px 600px at 70% -10%,#1a2233,transparent),var(--bg);
+    color:var(--text);min-height:100vh;padding:24px 16px 60px;
+  }
+  .wrap{max-width:1200px;margin:0 auto}
+  header{text-align:center;margin-bottom:28px}
+  h1{font-size:28px;font-weight:800;letter-spacing:-.5px;
+     background:linear-gradient(90deg,var(--accent),var(--accent2));
+     -webkit-background-clip:text;background-clip:text;color:transparent}
+  header p{color:var(--muted);margin-top:6px;font-size:14px}
+  .panel{
+    background:var(--card);border:1px solid var(--border);border-radius:16px;
+    padding:18px;margin-bottom:26px;box-shadow:var(--shadow)
+  }
+  .row{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end}
+  .field{display:flex;flex-direction:column;gap:6px;flex:1;min-width:180px}
+  .field.grow{min-width:280px;flex:2}
+  label{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+  input,select{
+    background:var(--card2);border:1px solid var(--border);border-radius:10px;
+    color:var(--text);padding:11px 12px;font-size:14px;outline:none;width:100%
+  }
+  input:focus,select:focus{border-color:var(--accent)}
+  button{
+    cursor:pointer;border:none;border-radius:10px;padding:12px 20px;font-size:14px;
+    font-weight:700;color:#fff;background:linear-gradient(90deg,var(--accent),#5b7cff);
+    box-shadow:0 4px 14px rgba(124,92,255,.35);transition:transform .08s,opacity .2s
+  }
+  button:hover{transform:translateY(-1px)}
+  button:disabled{opacity:.5;cursor:not-allowed;transform:none}
+  .btn-ghost{background:transparent;border:1px solid var(--border);
+    color:var(--text);box-shadow:none;font-weight:600}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;justify-content:space-between;
+    align-items:center;margin-bottom:16px}
+  .count{color:var(--muted);font-size:13px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:18px}
+  .card{
+    background:var(--card);border:1px solid var(--border);border-radius:16px;
+    overflow:hidden;box-shadow:var(--shadow);display:flex;flex-direction:column;
+    animation:pop .3s ease
+  }
+  @keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .photo{position:relative;aspect-ratio:1/1;background:var(--card2);overflow:hidden}
+  .photo img{width:100%;height:100%;object-fit:cover;display:block}
+  .photo .sk{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:var(--muted);font-size:12px;
+    background:linear-gradient(110deg,#161b22 30%,#232b36 50%,#161b22 70%);
+    background-size:200% 100%;animation:shimmer 1.4s infinite}
+  @keyframes shimmer{to{background-position:-200% 0}}
+  .badge{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.6);
+    backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,.15);
+    color:#fff;font-size:11px;font-weight:700;padding:4px 9px;border-radius:20px}
+  .body{padding:14px 15px 16px;display:flex;flex-direction:column;gap:10px}
+  .name{font-size:18px;font-weight:800}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:-4px}
+  .tags{display:flex;flex-wrap:wrap;gap:6px}
+  .tag{font-size:11px;background:var(--card2);border:1px solid var(--border);
+    padding:3px 9px;border-radius:20px;color:var(--text)}
+  .bio{font-size:13px;line-height:1.55;color:#c5d0da}
+  .story{font-size:12.5px;line-height:1.55;color:var(--muted);
+    border-left:2px solid var(--accent);padding-left:10px}
+  .stats{display:flex;flex-direction:column;gap:7px;margin-top:2px}
+  .stat{display:flex;align-items:center;gap:8px;font-size:11px}
+  .stat .lbl{width:64px;color:var(--muted);font-weight:600}
+  .bar{flex:1;height:7px;background:var(--card2);border-radius:6px;overflow:hidden}
+  .bar > i{display:block;height:100%;border-radius:6px;
+    background:linear-gradient(90deg,var(--accent2),var(--accent))}
+  .stat .val{width:24px;text-align:right;color:var(--text);font-weight:700}
+  .cardfoot{display:flex;gap:8px;padding:0 15px 15px}
+  .mini{flex:1;font-size:12px;padding:8px;border-radius:9px}
+  .empty{text-align:center;color:var(--muted);padding:60px 20px;font-size:14px}
+  footer{text-align:center;color:var(--muted);font-size:12px;margin-top:34px;line-height:1.6}
+  a{color:var(--accent2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🎭 Gerador de Personagens IA</h1>
+    <p>Descreva quem você quer e gere dezenas de personagens com foto, nome, biografia e atributos.</p>
+  </header>
+
+  <div class="panel">
+    <div class="row">
+      <div class="field grow">
+        <label>Descrição / cenário</label>
+        <input id="prompt" type="text" placeholder="ex: uma mulher no campo, uma guerreira, um cientista..." value="uma mulher no campo">
+      </div>
+      <div class="field" style="min-width:150px">
+        <label>Gênero</label>
+        <select id="gender">
+          <option value="aleatorio">Aleatório</option>
+          <option value="feminino" selected>Feminino</option>
+          <option value="masculino">Masculino</option>
+        </select>
+      </div>
+      <div class="field" style="min-width:160px">
+        <label>Estilo</label>
+        <select id="style">
+          <option value="realista" selected>Realista</option>
+          <option value="fantasia">Fantasia (RPG)</option>
+          <option value="scifi">Ficção científica</option>
+          <option value="anime">Anime / Cartoon</option>
+        </select>
+      </div>
+      <div class="field" style="min-width:110px;flex:0">
+        <label>Quantidade</label>
+        <input id="qty" type="number" min="1" max="60" value="30">
+      </div>
+      <div class="field" style="flex:0">
+        <label>&nbsp;</label>
+        <button id="gen">✨ Gerar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <span class="count" id="count"></span>
+    <div style="display:flex;gap:10px">
+      <button class="btn-ghost" id="download" style="display:none">⬇ Baixar dados (JSON)</button>
+      <button class="btn-ghost" id="clear" style="display:none">🗑 Limpar</button>
+    </div>
+  </div>
+
+  <div class="grid" id="grid">
+    <div class="empty" id="empty">Escreva uma descrição acima e clique em <b>Gerar</b> para criar seus personagens.</div>
+  </div>
+
+  <footer>
+    Fotos geradas por IA via <a href="https://pollinations.ai" target="_blank">Pollinations.ai</a> (gratuito).
+    Personagens são fictícios — feitos para jogos, ficção e prototipagem.
+  </footer>
+</div>
+
+<script>
+// ---------- Bancos de dados para gerar variação ----------
+const NOMES_F = ["Helena","Alice","Laura","Manuela","Valentina","Sophia","Isabella","Heloísa","Luiza","Cecília","Aurora","Beatriz","Lorena","Yasmin","Elisa","Antônia","Clara","Núbia","Íris","Rafaela","Camila","Bruna","Diana","Marina","Tereza","Vitória","Ester","Ana","Júlia","Morgana","Fernanda","Otília","Bianca","Lívia","Selena"];
+const NOMES_M = ["Miguel","Arthur","Heitor","Théo","Davi","Gabriel","Bernardo","Samuel","Rafael","Lorenzo","Enzo","Caio","Vicente","Rael","Ígor","Tomás","Benjamim","Otávio","Murilo","Anselmo","Diego","Leon","Ravi","Nícolas","Kael","Vladimir","Erick","Dante","Aldo","Rui","Fábio","Cassius","Bruno","Adriano","Ostap"];
+const SOBRENOMES = ["Almeida","Ribeiro","Santos","Costa","Andrade","Vasconcelos","Moraes","Nogueira","Fontana","Duarte","Bittencourt","Rocha","Amaral","Cavalcanti","Teixeira","Braga","Sá","Villar","Monteiro","Corvo","Delacroix","Volkov","Aizen","do Vale","das Neves","Sombra","Ferreira","Marques","Prado","Guerra"];
+
+const TRACOS = ["corajosa","reservada","impulsiva","leal","astuta","gentil","teimosa","carismática","desconfiada","otimista","fria","sonhadora","pragmática","rebelde","protetora","ambiciosa","irônica","paciente","destemida","melancólica"];
+const OCUP_REALISTA = ["fazendeira","fotógrafa","médica de campo","professora rural","veterinária","botânica","mecânica","jornalista","cozinheira","artesã","enfermeira","pescadora","engenheira agrônoma","cantora local","guia turística"];
+const OCUP_FANTASIA = ["guerreira","maga do fogo","arqueira élfica","curandeira","caçadora de feras","ladra ágil","paladina","druida","invocadora","bárbara","feiticeira das sombras","clériga","espadachim errante","alquimista"];
+const OCUP_SCIFI = ["piloto de nave","hacker cibernética","engenheira de androides","caçadora de recompensas","comandante da frota","bióloga espacial","mercenária","médica de estação orbital","técnica de drones","exploradora galáctica"];
+const OCUP_ANIME = ["estudante misteriosa","espadachim","idol","ninja","maga aprendiz","heroína mascarada","piloto de mecha","exorcista","aventureira","guardiã"];
+
+const LOCAIS = ["numa vila isolada","à beira de um grande rio","numa cidade cercada por montanhas","numa fazenda antiga da família","num porto movimentado","numa floresta esquecida","numa estação orbital","num reino em guerra","num vilarejo à beira-mar","numa metrópole cinzenta"];
+const OBJETIVOS = ["proteger sua família a qualquer custo","descobrir a verdade sobre seu passado","vingar uma traição antiga","encontrar um lugar para chamar de lar","provar seu valor aos que duvidaram dela","reunir uma força capaz de mudar o destino","fugir de um erro que a persegue","dominar uma arte que poucos entendem"];
+const SEGREDOS = ["Carrega uma cicatriz que nunca explica.","Guarda uma carta que nunca teve coragem de enviar.","Fala com os animais quando ninguém escuta.","Tem um dom que aprendeu a esconder.","Sonha todas as noites com um rosto que não reconhece.","Deve um favor perigoso a alguém poderoso.","Nunca dorme sem sua velha adaga por perto.","Já foi outra pessoa, com outro nome."];
+
+const STATS_LABELS = ["Força","Agilidade","Inteligência","Carisma","Vontade"];
+
+// ---------- utilidades ----------
+const pick = a => a[Math.floor(Math.random()*a.length)];
+const shuffle = a => a.map(v=>[Math.random(),v]).sort((x,y)=>x[0]-y[0]).map(v=>v[1]);
+function ocupacoes(style){
+  if(style==="fantasia")return OCUP_FANTASIA;
+  if(style==="scifi")return OCUP_SCIFI;
+  if(style==="anime")return OCUP_ANIME;
+  return OCUP_REALISTA;
+}
+function stylePrompt(style){
+  if(style==="fantasia")return "fantasy art, RPG character portrait, cinematic lighting";
+  if(style==="scifi")return "sci-fi character portrait, futuristic, cinematic";
+  if(style==="anime")return "anime style, detailed illustration, vibrant";
+  return "realistic photo portrait, natural lighting, high detail, 50mm";
+}
+
+function gerarPersonagem(base, gender, style, i){
+  const g = gender==="aleatorio" ? pick(["feminino","masculino"]) : gender;
+  const nome = pick(g==="feminino"?NOMES_F:NOMES_M) + " " + pick(SOBRENOMES);
+  const idade = 18 + Math.floor(Math.random()*42);
+  const ocup = pick(ocupacoes(style));
+  const t1 = pick(TRACOS), t2 = pick(TRACOS.filter(t=>t!==t1));
+  const local = pick(LOCAIS);
+  const obj = pick(OBJETIVOS);
+  const segredo = pick(SEGREDOS);
+  const generoTxt = g==="feminino" ? "mulher" : "homem";
+
+  const bio = `${nome.split(" ")[0]} é ${g==="feminino"?"uma":"um"} ${ocup} de ${idade} anos, conhecid${g==="feminino"?"a":"o"} por ser ${t1} e ${t2}. Cresceu ${local} e hoje busca ${obj}.`;
+  const story = segredo;
+
+  const stats = {};
+  STATS_LABELS.forEach(l=> stats[l] = 3 + Math.floor(Math.random()*8)); // 3..10
+
+  // prompt da imagem (seed único garante rostos diferentes)
+  const seed = Math.floor(Math.random()*1e6);
+  const imgPrompt = `${stylePrompt(style)}, ${generoTxt}, ${base}, ${t1}, ${ocup}`;
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(imgPrompt)}?width=512&height=512&seed=${seed}&nologo=true&model=flux`;
+
+  return {nome, idade, genero:g, ocupacao:ocup, tracos:[t1,t2], bio, story, stats, imgUrl:url, seed};
+}
+
+// ---------- render ----------
+const grid = document.getElementById("grid");
+const empty = document.getElementById("empty");
+let personagens = [];
+
+function card(p){
+  const el = document.createElement("div");
+  el.className = "card";
+  const stats = STATS_LABELS.map(l=>`
+    <div class="stat"><span class="lbl">${l}</span>
+      <span class="bar"><i style="width:${p.stats[l]*10}%"></i></span>
+      <span class="val">${p.stats[l]}</span></div>`).join("");
+  el.innerHTML = `
+    <div class="photo">
+      <div class="sk">gerando foto…</div>
+      <span class="badge">${p.idade} anos</span>
+      <img loading="lazy" src="${p.imgUrl}" alt="${p.nome}"
+           onload="this.previousElementSibling && this.parentNode.querySelector('.sk') && this.parentNode.querySelector('.sk').remove()"
+           onerror="const s=this.parentNode.querySelector('.sk'); if(s){s.textContent='⚠ falha ao carregar — tente gerar de novo'}">
+    </div>
+    <div class="body">
+      <div>
+        <div class="name">${p.nome}</div>
+        <div class="sub">${p.ocupacao} • ${p.genero==="feminino"?"♀":"♂"}</div>
+      </div>
+      <div class="tags">${p.tracos.map(t=>`<span class="tag">${t}</span>`).join("")}</div>
+      <div class="bio">${p.bio}</div>
+      <div class="story">🔒 ${p.story}</div>
+      <div class="stats">${stats}</div>
+    </div>`;
+  return el;
+}
+
+function render(){
+  grid.innerHTML = "";
+  if(!personagens.length){ grid.appendChild(empty); return; }
+  personagens.forEach(p=> grid.appendChild(card(p)));
+  document.getElementById("count").textContent = `${personagens.length} personagens gerados`;
+  document.getElementById("download").style.display = "";
+  document.getElementById("clear").style.display = "";
+}
+
+document.getElementById("gen").addEventListener("click", ()=>{
+  const base = document.getElementById("prompt").value.trim() || "retrato";
+  const gender = document.getElementById("gender").value;
+  const style = document.getElementById("style").value;
+  let qty = parseInt(document.getElementById("qty").value)||30;
+  qty = Math.max(1, Math.min(60, qty));
+  personagens = [];
+  for(let i=0;i<qty;i++) personagens.push(gerarPersonagem(base, gender, style, i));
+  render();
+  window.scrollTo({top: document.querySelector('.toolbar').offsetTop-20, behavior:'smooth'});
+});
+
+document.getElementById("clear").addEventListener("click", ()=>{
+  personagens = [];
+  document.getElementById("count").textContent = "";
+  document.getElementById("download").style.display = "none";
+  document.getElementById("clear").style.display = "none";
+  render();
+});
+
+document.getElementById("download").addEventListener("click", ()=>{
+  const data = personagens.map(({imgUrl, ...rest})=>({...rest, foto:imgUrl}));
+  const blob = new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "personagens.json";
+  a.click();
+});
+</script>
+</body>
+</html>
