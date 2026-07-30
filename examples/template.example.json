@@ -1,0 +1,21 @@
+{
+  "name": "promo_boas_vindas",
+  "language": "pt_BR",
+  "category": "MARKETING",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Olá {{1}}! Aproveite nossa promoção exclusiva de hoje. Responda para saber mais.",
+      "example": {
+        "body_text": [["Cliente"]]
+      }
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        { "type": "QUICK_REPLY", "text": "Quero saber mais" },
+        { "type": "QUICK_REPLY", "text": "Não tenho interesse" }
+      ]
+    }
+  ]
+}

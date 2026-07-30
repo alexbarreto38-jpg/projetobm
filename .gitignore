@@ -1,0 +1,12 @@
+node_modules/
+*.log
+.env
+.env.*
+!.env.example
+
+# Dados sensíveis reais (mantenha só os *.example.*)
+bms.csv
+recipients.csv
+*.local.csv
+out/
+resultados*.csv
