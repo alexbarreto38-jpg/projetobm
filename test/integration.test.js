@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { MetaClient } from '../src/metaClient.js';
-import { uploadTemplateToBMs } from '../src/templates.js';
+import { uploadTemplateToBMs, checkTemplatesOnBMs } from '../src/templates.js';
 import { dispatchInBatches } from '../src/dispatch.js';
 
 // Sobe um servidor que imita a Graph API da Meta e registra o que recebeu.
@@ -16,6 +16,20 @@ function startMockGraph() {
     req.on('end', () => {
       const parsed = body ? JSON.parse(body) : {};
       received.push({ method: req.method, url: req.url, auth: req.headers.authorization, body: parsed });
+
+      // GET .../{waba}/message_templates -> lista de templates
+      if (req.method === 'GET' && req.url.includes('/message_templates')) {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            data: [
+              { id: '1', name: 'promo', status: 'APPROVED', category: 'MARKETING', language: 'pt_BR' },
+              { id: '2', name: 'aviso', status: 'PENDING', category: 'UTILITY', language: 'pt_BR' },
+            ],
+          })
+        );
+        return;
+      }
 
       // POST .../{waba}/message_templates  -> criação de template
       if (req.url.includes('/message_templates')) {
@@ -152,6 +166,68 @@ test('integração: dispatch com api=mmlite usa o endpoint /marketing_messages',
     assert.ok(call.url.endsWith('/marketing_messages'), `url foi ${call.url}`);
     assert.equal(call.body.messaging_product, 'whatsapp');
     assert.equal(call.body.template.name, 'promo');
+  } finally {
+    delete process.env.META_GRAPH_BASE;
+    await mock.close();
+  }
+});
+
+test('integração: check-templates reporta status por BM', async () => {
+  const mock = await startMockGraph();
+  try {
+    process.env.META_GRAPH_BASE = mock.base;
+    const bms = [
+      { name: 'BM A', token: 'tok_a', wabaId: 'waba_a', phoneId: 'p_a' },
+      { name: 'BM B', token: 'tok_b', wabaId: 'waba_b', phoneId: 'p_b' },
+    ];
+
+    // filtrando por um template aprovado
+    const approved = await checkTemplatesOnBMs(bms, { name: 'promo' });
+    assert.ok(approved.every((r) => r.found && r.status === 'APPROVED'));
+
+    // filtrando por um template inexistente
+    const missing = await checkTemplatesOnBMs(bms, { name: 'inexistente' });
+    assert.ok(missing.every((r) => !r.found && r.status === 'not_found'));
+  } finally {
+    delete process.env.META_GRAPH_BASE;
+    await mock.close();
+  }
+});
+
+test('integração: --limit trava o total de envios (budget)', async () => {
+  const mock = await startMockGraph();
+  try {
+    process.env.META_GRAPH_BASE = mock.base;
+    const bms = Array.from({ length: 4 }, (_, i) => ({
+      name: `BM ${i}`,
+      token: `tok_${i}`,
+      wabaId: `waba_${i}`,
+      phoneId: `phone_${i}`,
+    }));
+    // 4 BMs x 3 destinatários = 12 possíveis, mas limitamos a 5
+    const recipients = [
+      { phone: '551100000000A', vars: {} },
+      { phone: '551100000000B', vars: {} },
+      { phone: '551100000000C', vars: {} },
+    ];
+
+    const results = await dispatchInBatches(bms, {
+      templateName: 'promo',
+      recipients,
+      batchSize: 250,
+      maxMessages: 5,
+      bmConcurrency: 1, // determinístico p/ contar o corte
+      recipientConcurrency: 1,
+    });
+
+    const totalSent = results.reduce((a, r) => a + r.sent, 0);
+    const totalSkipped = results.reduce((a, r) => a + (r.skipped || 0), 0);
+    assert.equal(totalSent, 5);
+    assert.equal(totalSkipped, 7);
+
+    // o mock só deve ter recebido 5 chamadas de envio
+    const sends = mock.received.filter((r) => r.url.endsWith('/messages') && r.body.to);
+    assert.equal(sends.length, 5);
   } finally {
     delete process.env.META_GRAPH_BASE;
     await mock.close();

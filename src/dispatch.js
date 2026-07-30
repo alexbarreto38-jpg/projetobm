@@ -4,7 +4,7 @@
 
 import { logger } from './logger.js';
 import { MetaClient, MetaApiError } from './metaClient.js';
-import { chunk, mapWithConcurrency, sleep } from './batch.js';
+import { chunk, mapWithConcurrency, sleep, makeBudget } from './batch.js';
 
 // Constrói os `components` da mensagem a partir das variáveis do destinatário.
 // Convenção: colunas body1, body2, ... viram parâmetros de texto do BODY,
@@ -22,13 +22,16 @@ export function buildComponents(vars = {}) {
 
 // Envia o template de uma BM para todos os seus destinatários.
 async function dispatchFromBM(bm, recipients, opts) {
-  const { templateName, languageCode, version, recipientConcurrency, api } = opts;
+  const { templateName, languageCode, version, recipientConcurrency, api, budget } = opts;
   if (!bm.phoneId) {
     throw new MetaApiError('BM sem phone_id (necessário para envio)', {});
   }
   const client = new MetaClient({ token: bm.token, version });
 
+  const SKIPPED = Symbol('skipped');
   const settled = await mapWithConcurrency(recipients, recipientConcurrency, async (rcpt) => {
+    // trava de segurança: só envia se ainda houver saldo no orçamento
+    if (budget && !budget.reserve()) return SKIPPED;
     const components = buildComponents(rcpt.vars);
     const resp = await client.sendTemplateMessage(bm.phoneId, {
       to: rcpt.phone,
@@ -43,10 +46,12 @@ async function dispatchFromBM(bm, recipients, opts) {
 
   let sent = 0;
   let failed = 0;
+  let skipped = 0;
   const failures = [];
   settled.forEach((s, idx) => {
     if (s.status === 'fulfilled') {
-      sent++;
+      if (s.value === SKIPPED) skipped++;
+      else sent++;
     } else {
       failed++;
       const err = s.reason;
@@ -55,7 +60,7 @@ async function dispatchFromBM(bm, recipients, opts) {
     }
   });
 
-  return { bm: bm.name, phoneId: bm.phoneId, sent, failed, total: recipients.length, failures };
+  return { bm: bm.name, phoneId: bm.phoneId, sent, failed, skipped, total: recipients.length, failures };
 }
 
 // Resolve quais destinatários vão para cada BM.
@@ -81,14 +86,17 @@ export async function dispatchInBatches(bms, opts) {
     recipientsByBM,
     delayBetweenBatchesMs = 0,
     api = 'cloud',
+    maxMessages = 0,
   } = opts;
 
   if (!templateName) throw new Error('dispatchInBatches requer templateName');
 
+  const budget = makeBudget(maxMessages);
   const batches = chunk(bms, batchSize);
   logger.info(
     `Disparo (${api}): ${bms.length} BM(s) em ${batches.length} lote(s) de até ${batchSize}, ` +
-      `template="${templateName}" lang=${languageCode}`
+      `template="${templateName}" lang=${languageCode}` +
+      (budget.unlimited ? '' : ` [limite=${maxMessages} msgs]`)
   );
 
   const allResults = [];
@@ -99,15 +107,16 @@ export async function dispatchInBatches(bms, opts) {
     const settled = await mapWithConcurrency(batch, bmConcurrency, async (bm) => {
       const rcpts = recipientsFor(bm, { recipients, recipientsByBM });
       if (rcpts.length === 0) {
-        return { bm: bm.name, phoneId: bm.phoneId, sent: 0, failed: 0, total: 0, failures: [] };
+        return { bm: bm.name, phoneId: bm.phoneId, sent: 0, failed: 0, skipped: 0, total: 0, failures: [] };
       }
-      return dispatchFromBM(bm, rcpts, { templateName, languageCode, version, recipientConcurrency, api });
+      return dispatchFromBM(bm, rcpts, { templateName, languageCode, version, recipientConcurrency, api, budget });
     });
 
     settled.forEach((s, i) => {
       if (s.status === 'fulfilled') {
         const r = s.value;
-        logger.info(`  ${r.bm}: enviados=${r.sent} falhas=${r.failed}/${r.total}`);
+        const skipTxt = r.skipped ? ` pulados=${r.skipped}` : '';
+        logger.info(`  ${r.bm}: enviados=${r.sent} falhas=${r.failed}/${r.total}${skipTxt}`);
         allResults.push({ ...r, ok: r.failed === 0 });
       } else {
         const bm = batch[i];
@@ -135,6 +144,10 @@ export async function dispatchInBatches(bms, opts) {
 
   const totalSent = allResults.reduce((a, r) => a + r.sent, 0);
   const totalFailed = allResults.reduce((a, r) => a + r.failed, 0);
-  logger.info(`Disparo concluído: enviados=${totalSent} falhas=${totalFailed} em ${bms.length} BM(s)`);
+  const totalSkipped = allResults.reduce((a, r) => a + (r.skipped || 0), 0);
+  const skipTxt = totalSkipped ? ` pulados=${totalSkipped} (limite atingido)` : '';
+  logger.info(
+    `Disparo concluído: enviados=${totalSent} falhas=${totalFailed}${skipTxt} em ${bms.length} BM(s)`
+  );
   return allResults;
 }

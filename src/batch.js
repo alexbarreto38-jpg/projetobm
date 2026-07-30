@@ -38,3 +38,25 @@ export async function mapWithConcurrency(items, concurrency, worker) {
 export function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+// Orçamento compartilhado de envios (trava de segurança --limit).
+// `limit` <= 0 significa ilimitado. reserve() devolve true se ainda há saldo.
+// Como o event loop é single-thread, o incremento é seguro entre tarefas async.
+export function makeBudget(limit) {
+  const unlimited = !limit || limit <= 0;
+  let used = 0;
+  return {
+    reserve() {
+      if (unlimited) return true;
+      if (used >= limit) return false;
+      used++;
+      return true;
+    },
+    get used() {
+      return used;
+    },
+    get unlimited() {
+      return unlimited;
+    },
+  };
+}

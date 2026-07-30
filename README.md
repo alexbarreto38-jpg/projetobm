@@ -53,7 +53,17 @@ node src/cli.js upload-templates \
 
 O mesmo template é criado em cada BM. O relatório (`--out`) traz, por BM: `ok`, `templateId`, `status` (ex.: `PENDING`) e `error`.
 
-## 2) Disparar mensagens em lotes de 250
+## 2) Checar status dos templates (antes de disparar)
+
+Antes de disparar, confira em quais BMs o template já está **aprovado** — evita mandar para conta com template `PENDING`/`REJECTED`:
+
+```bash
+node src/cli.js check-templates --bms bms.csv --name promo_boas_vindas --out status.csv
+```
+
+Sem `--name`, resume a contagem por status em cada BM. Com `--name`, mostra o status daquele template por BM e quantas contas estão prontas.
+
+## 3) Disparar mensagens em lotes de 250
 
 Os templates precisam já estar **aprovados** nas BMs. Monte um `recipients.csv` com a coluna `phone` e, se o template tiver variáveis no corpo, colunas `body1`, `body2`, … na ordem:
 
@@ -71,11 +81,14 @@ node src/cli.js dispatch \
   --lang pt_BR \
   --recipients recipients.csv \
   --batch-size 250 \
+  --limit 500 \
   --bm-concurrency 25 \
   --rcpt-concurrency 10 \
   --delay-batches 2000 \
   --out resultado-disparo.csv
 ```
+
+> **`--limit`** é uma trava de segurança: teto de mensagens na rodada. Ao atingir, os envios restantes são **pulados** (aparecem como `skipped` no relatório) em vez de enviados. Ótimo para a primeira operação real — comece com `--limit` baixo.
 
 ### Qual API usar (`--api`)
 

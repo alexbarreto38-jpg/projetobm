@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseCSV, toCSV } from '../src/csv.js';
-import { chunk, mapWithConcurrency } from '../src/batch.js';
+import { chunk, mapWithConcurrency, makeBudget } from '../src/batch.js';
 import { buildComponents } from '../src/dispatch.js';
 
 test('parseCSV lê cabeçalho e linhas', () => {
@@ -53,4 +53,19 @@ test('buildComponents monta parâmetros do body em ordem', () => {
 
 test('buildComponents retorna undefined sem variáveis', () => {
   assert.equal(buildComponents({ phone: '5511' }), undefined);
+});
+
+test('makeBudget libera até o limite e depois bloqueia', () => {
+  const b = makeBudget(3);
+  assert.equal(b.reserve(), true);
+  assert.equal(b.reserve(), true);
+  assert.equal(b.reserve(), true);
+  assert.equal(b.reserve(), false);
+  assert.equal(b.used, 3);
+});
+
+test('makeBudget com 0 ou negativo é ilimitado', () => {
+  const b = makeBudget(0);
+  assert.equal(b.unlimited, true);
+  for (let i = 0; i < 1000; i++) assert.equal(b.reserve(), true);
 });
