@@ -5,7 +5,11 @@ import { logger } from './logger.js';
 import { sleep } from './batch.js';
 
 const DEFAULT_VERSION = process.env.META_API_VERSION || 'v21.0';
-const BASE = 'https://graph.facebook.com';
+// Base da Graph API. Lida no momento da construção (env sobrescreve; útil
+// para testes/mock ou proxy).
+function defaultBase() {
+  return process.env.META_GRAPH_BASE || 'https://graph.facebook.com';
+}
 
 export class MetaApiError extends Error {
   constructor(message, { status, code, subcode, fbtraceId, body } = {}) {
@@ -29,16 +33,17 @@ function isRetryable(status, code) {
 }
 
 export class MetaClient {
-  constructor({ token, version = DEFAULT_VERSION, maxRetries = 4, baseDelayMs = 1000 } = {}) {
+  constructor({ token, version = DEFAULT_VERSION, base, maxRetries = 4, baseDelayMs = 1000 } = {}) {
     if (!token) throw new Error('MetaClient requer um token de acesso');
     this.token = token;
     this.version = version;
+    this.base = base || defaultBase();
     this.maxRetries = maxRetries;
     this.baseDelayMs = baseDelayMs;
   }
 
   async request(method, path, { query, body } = {}) {
-    const url = new URL(`${BASE}/${this.version}/${path}`);
+    const url = new URL(`${this.base}/${this.version}/${path}`);
     if (query) {
       for (const [k, v] of Object.entries(query)) {
         if (v !== undefined && v !== null) url.searchParams.set(k, v);
