@@ -127,10 +127,18 @@ export class MetaClient {
   // ---- Envio de mensagens ----
 
   // Envia uma mensagem de template a partir de um phone number ID.
-  // https://developers.facebook.com/docs/whatsapp/cloud-api/reference/messages
-  sendTemplateMessage(phoneNumberId, { to, templateName, languageCode, components }) {
+  //
+  // `api`:
+  //   'cloud'  -> Cloud API, endpoint /{phone}/messages (utility/auth/marketing)
+  //   'mmlite' -> Marketing Messages Lite, endpoint /{phone}/marketing_messages
+  //               (só marketing; mesma WABA/número/template, só muda o endpoint)
+  //
+  // Cloud API: https://developers.facebook.com/docs/whatsapp/cloud-api/reference/messages
+  // MM Lite:   https://developers.facebook.com/docs/whatsapp/marketing-messages-lite-api/
+  sendTemplateMessage(phoneNumberId, { to, templateName, languageCode, components, api = 'cloud' }) {
     const message = {
       messaging_product: 'whatsapp',
+      recipient_type: 'individual',
       to,
       type: 'template',
       template: {
@@ -141,6 +149,7 @@ export class MetaClient {
     if (components && components.length) {
       message.template.components = components;
     }
-    return this.request('POST', `${phoneNumberId}/messages`, { body: message });
+    const endpoint = api === 'mmlite' ? 'marketing_messages' : 'messages';
+    return this.request('POST', `${phoneNumberId}/${endpoint}`, { body: message });
   }
 }

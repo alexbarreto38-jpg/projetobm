@@ -22,7 +22,7 @@ export function buildComponents(vars = {}) {
 
 // Envia o template de uma BM para todos os seus destinatários.
 async function dispatchFromBM(bm, recipients, opts) {
-  const { templateName, languageCode, version, recipientConcurrency } = opts;
+  const { templateName, languageCode, version, recipientConcurrency, api } = opts;
   if (!bm.phoneId) {
     throw new MetaApiError('BM sem phone_id (necessário para envio)', {});
   }
@@ -35,6 +35,7 @@ async function dispatchFromBM(bm, recipients, opts) {
       templateName,
       languageCode,
       components,
+      api,
     });
     const id = resp?.messages?.[0]?.id;
     return { to: rcpt.phone, messageId: id };
@@ -79,13 +80,14 @@ export async function dispatchInBatches(bms, opts) {
     recipients,
     recipientsByBM,
     delayBetweenBatchesMs = 0,
+    api = 'cloud',
   } = opts;
 
   if (!templateName) throw new Error('dispatchInBatches requer templateName');
 
   const batches = chunk(bms, batchSize);
   logger.info(
-    `Disparo: ${bms.length} BM(s) em ${batches.length} lote(s) de até ${batchSize}, ` +
+    `Disparo (${api}): ${bms.length} BM(s) em ${batches.length} lote(s) de até ${batchSize}, ` +
       `template="${templateName}" lang=${languageCode}`
   );
 
@@ -99,7 +101,7 @@ export async function dispatchInBatches(bms, opts) {
       if (rcpts.length === 0) {
         return { bm: bm.name, phoneId: bm.phoneId, sent: 0, failed: 0, total: 0, failures: [] };
       }
-      return dispatchFromBM(bm, rcpts, { templateName, languageCode, version, recipientConcurrency });
+      return dispatchFromBM(bm, rcpts, { templateName, languageCode, version, recipientConcurrency, api });
     });
 
     settled.forEach((s, i) => {

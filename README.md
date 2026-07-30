@@ -67,6 +67,7 @@ phone,body1
 node src/cli.js dispatch \
   --bms bms.csv \
   --template-name promo_boas_vindas \
+  --api mmlite \
   --lang pt_BR \
   --recipients recipients.csv \
   --batch-size 250 \
@@ -75,6 +76,15 @@ node src/cli.js dispatch \
   --delay-batches 2000 \
   --out resultado-disparo.csv
 ```
+
+### Qual API usar (`--api`)
+
+| `--api` | Endpoint | Para quê |
+|---------|----------|----------|
+| `mmlite` | `/{phone}/marketing_messages` | **Marketing** — Marketing Messages Lite API. Recomendado para promoções: melhor entrega e é o caminho que a Meta prioriza para marketing. |
+| `cloud` (padrão) | `/{phone}/messages` | **Utility / Authentication** (avisos, OTP, cobranças) — Cloud API, que pega os descontos por volume nessas categorias. |
+
+As duas usam a **mesma WABA, o mesmo número e a mesma biblioteca de templates** — só muda o endpoint de envio. Respostas recebidas (inbound) sempre chegam pela Cloud API.
 
 Como funciona o disparo:
 

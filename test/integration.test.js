@@ -24,8 +24,9 @@ function startMockGraph() {
         return;
       }
 
-      // POST .../{phone}/messages -> envio; devolve 429 uma vez pra testar retry
-      if (req.url.includes('/messages')) {
+      // POST .../{phone}/messages (Cloud API) ou .../{phone}/marketing_messages
+      // (MM Lite) -> envio; devolve 429 uma vez pra testar retry
+      if (req.url.endsWith('/messages') || req.url.endsWith('/marketing_messages')) {
         if (parsed.to === '5511000000001' && rateLimitHits < 1) {
           rateLimitHits++;
           res.writeHead(429, { 'content-type': 'application/json' });
@@ -124,6 +125,33 @@ test('integração: dispatch em lotes envia mensagens e faz retry em 429', async
     assert.equal(msg.body.type, 'template');
     assert.equal(msg.body.template.name, 'promo');
     assert.equal(msg.body.template.language.code, 'pt_BR');
+  } finally {
+    delete process.env.META_GRAPH_BASE;
+    await mock.close();
+  }
+});
+
+test('integração: dispatch com api=mmlite usa o endpoint /marketing_messages', async () => {
+  const mock = await startMockGraph();
+  try {
+    process.env.META_GRAPH_BASE = mock.base;
+    const bms = [{ name: 'BM X', token: 'tok_x', wabaId: 'waba_x', phoneId: 'phone_x' }];
+    const recipients = [{ phone: '5511222220000', vars: { body1: 'Ana' } }];
+
+    const results = await dispatchInBatches(bms, {
+      templateName: 'promo',
+      languageCode: 'pt_BR',
+      recipients,
+      batchSize: 250,
+      api: 'mmlite',
+    });
+
+    assert.equal(results[0].sent, 1);
+    const call = mock.received.find((r) => r.body && r.body.to === '5511222220000');
+    // bateu no endpoint da MM Lite, não no /messages da Cloud API
+    assert.ok(call.url.endsWith('/marketing_messages'), `url foi ${call.url}`);
+    assert.equal(call.body.messaging_product, 'whatsapp');
+    assert.equal(call.body.template.name, 'promo');
   } finally {
     delete process.env.META_GRAPH_BASE;
     await mock.close();

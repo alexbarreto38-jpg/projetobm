@@ -63,6 +63,9 @@ upload-templates:
 
 dispatch:
   --template-name <nome>   Nome do template já aprovado nas BMs
+  --api <cloud|mmlite>     cloud = Cloud API (/messages, utility/auth/marketing)
+                           mmlite = Marketing Messages Lite (/marketing_messages,
+                           recomendado p/ marketing). Padrão: cloud
   --lang <código>          Código de idioma (padrão: pt_BR)
   --recipients <arquivo>   CSV de destinatários (coluna phone; body1,body2,... para variáveis)
   --batch-size <n>         BMs por lote (padrão: 250)
@@ -94,10 +97,14 @@ async function cmdDispatch(args) {
   const templateName = requireArg(args, 'template-name');
   const recipients = args.recipients ? loadRecipients(args.recipients) : [];
   const batchSize = Number(args['batch-size']) || 250;
+  const api = (args.api || 'cloud').toLowerCase();
+  if (!['cloud', 'mmlite'].includes(api)) {
+    throw new Error(`--api inválido: "${api}" (use "cloud" ou "mmlite")`);
+  }
 
   if (args['dry-run']) {
     logger.info(
-      `[dry-run] Disparo de "${templateName}" para ${bms.length} BM(s) em lotes de ${batchSize}, ` +
+      `[dry-run] Disparo (${api}) de "${templateName}" para ${bms.length} BM(s) em lotes de ${batchSize}, ` +
         `${recipients.length} destinatário(s) por BM`
     );
     return;
@@ -108,6 +115,7 @@ async function cmdDispatch(args) {
     languageCode: args.lang || 'pt_BR',
     recipients,
     batchSize,
+    api,
     bmConcurrency: Number(args['bm-concurrency']) || 25,
     recipientConcurrency: Number(args['rcpt-concurrency']) || 10,
     delayBetweenBatchesMs: Number(args['delay-batches']) || 0,
