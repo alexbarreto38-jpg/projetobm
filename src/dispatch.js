@@ -48,19 +48,28 @@ async function dispatchFromBM(bm, recipients, opts) {
   let failed = 0;
   let skipped = 0;
   const failures = [];
+  // registro por envio (para reconciliar depois com o webhook)
+  const sends = [];
   settled.forEach((s, idx) => {
+    const to = recipients[idx].phone;
     if (s.status === 'fulfilled') {
-      if (s.value === SKIPPED) skipped++;
-      else sent++;
+      if (s.value === SKIPPED) {
+        skipped++;
+        sends.push({ bm: bm.name, phoneId: bm.phoneId, to, messageId: '', sendStatus: 'skipped', error: '' });
+      } else {
+        sent++;
+        sends.push({ bm: bm.name, phoneId: bm.phoneId, to, messageId: s.value.messageId || '', sendStatus: 'sent', error: '' });
+      }
     } else {
       failed++;
       const err = s.reason;
       const msg = err instanceof MetaApiError ? `${err.message} (code=${err.code})` : err.message;
-      failures.push({ to: recipients[idx].phone, error: msg });
+      failures.push({ to, error: msg });
+      sends.push({ bm: bm.name, phoneId: bm.phoneId, to, messageId: '', sendStatus: 'failed', error: msg });
     }
   });
 
-  return { bm: bm.name, phoneId: bm.phoneId, sent, failed, skipped, total: recipients.length, failures };
+  return { bm: bm.name, phoneId: bm.phoneId, sent, failed, skipped, total: recipients.length, failures, sends };
 }
 
 // Resolve quais destinatários vão para cada BM.
@@ -107,7 +116,7 @@ export async function dispatchInBatches(bms, opts) {
     const settled = await mapWithConcurrency(batch, bmConcurrency, async (bm) => {
       const rcpts = recipientsFor(bm, { recipients, recipientsByBM });
       if (rcpts.length === 0) {
-        return { bm: bm.name, phoneId: bm.phoneId, sent: 0, failed: 0, skipped: 0, total: 0, failures: [] };
+        return { bm: bm.name, phoneId: bm.phoneId, sent: 0, failed: 0, skipped: 0, total: 0, failures: [], sends: [] };
       }
       return dispatchFromBM(bm, rcpts, { templateName, languageCode, version, recipientConcurrency, api, budget });
     });
@@ -130,6 +139,7 @@ export async function dispatchInBatches(bms, opts) {
           failed: 0,
           total: 0,
           failures: [],
+          sends: [],
           ok: false,
           error: msg,
         });

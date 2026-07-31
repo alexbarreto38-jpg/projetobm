@@ -126,6 +126,28 @@ node src/cli.js webhook \
 
 > A URL precisa ser pública e HTTPS para a Meta alcançar. Em produção, ponha atrás de um proxy/reverso com TLS (nginx, Caddy) ou um túnel para testes.
 
+## 5) Reconciliar disparo × entrega
+
+Para fechar a régua (quem recebeu, leu ou falhou), cruze o CSV detalhado do disparo com o CSV do webhook. O disparo gera o detalhado com `--sends-out`:
+
+```bash
+node src/cli.js dispatch ... --sends-out sends.csv        # 1 linha por envio, com messageId
+node src/cli.js webhook ... --out status.csv              # status recebidos ao vivo
+node src/cli.js reconcile --sends sends.csv --status status.csv --out final.csv
+```
+
+O `reconcile` junta os dois por `messageId` e resolve o **status final** de cada envio:
+
+| finalStatus | significado |
+|-------------|-------------|
+| `read` / `delivered` / `sent` | status mais avançado observado no webhook |
+| `failed` | a Meta reportou falha na entrega (traz `errorCode`/`errorTitle`) |
+| `send_failed` | falhou já no envio (nem chegou à Meta) |
+| `skipped` | pulado pela trava `--limit` |
+| `no_status` | enviado, mas o webhook ainda não retornou status |
+
+Sem `--out`, imprime só o resumo (ex.: `read=1 failed=1 send_failed=1`).
+
 ## Opções úteis
 
 - `--dry-run` — valida os arquivos e mostra o que seria feito, **sem chamar a API**.
@@ -149,6 +171,7 @@ src/
   templates.js   # upload e checagem de templates em massa
   dispatch.js    # disparo em lotes de 250 (Cloud API / MM Lite, --limit)
   webhook.js     # servidor de webhook de status (assinatura, CSV)
+  reconcile.js   # cruza disparo × status de entrega
   batch.js       # chunk + concorrência + budget (--limit)
   csv.js         # parser/serializador CSV
   logger.js      # logs

@@ -20,6 +20,7 @@ import { loadBMs, loadTemplate, loadRecipients } from './config.js';
 import { uploadTemplateToBMs, checkTemplatesOnBMs } from './templates.js';
 import { dispatchInBatches } from './dispatch.js';
 import { startWebhookServer } from './webhook.js';
+import { reconcileFiles } from './reconcile.js';
 import { toCSV } from './csv.js';
 
 function parseArgs(argv) {
@@ -57,6 +58,7 @@ Uso:
   projetobm check-templates --bms <bms.csv> [--name <template>] [opções]
   projetobm dispatch --bms <bms.csv> --template-name <nome> [opções]
   projetobm webhook --verify-token <token> [--port 3000] [--out status.csv]
+  projetobm reconcile --sends <sends.csv> --status <status.csv> [--out final.csv]
 
 Opções comuns:
   --bms <arquivo>          CSV de BMs (colunas: name,token,waba_id,phone_id)
@@ -81,6 +83,7 @@ dispatch:
   --recipients <arquivo>   CSV de destinatários (coluna phone; body1,body2,... para variáveis)
   --batch-size <n>         BMs por lote (padrão: 250)
   --limit <n>              Trava de segurança: máx. de mensagens na rodada (0 = sem limite)
+  --sends-out <arquivo>    CSV detalhado por envio (com messageId), p/ reconciliar
   --bm-concurrency <n>     BMs simultâneas dentro do lote (padrão: 25)
   --rcpt-concurrency <n>   Envios simultâneos por BM (padrão: 10)
   --delay-batches <ms>     Espera entre lotes em ms (padrão: 0)
@@ -91,6 +94,11 @@ webhook:
   --port <n>               Porta HTTP (padrão: 3000)
   --path <caminho>         Caminho do endpoint (padrão: /webhook)
   --out <status.csv>       Anexa os status recebidos neste CSV
+
+reconcile:
+  --sends <arquivo>        CSV de envios gerado pelo dispatch (--sends-out)
+  --status <arquivo>       CSV de status gerado pelo webhook (--out)
+  --out <final.csv>        Salva o relatório final; sem --out, imprime o resumo
 `);
 }
 
@@ -172,6 +180,27 @@ async function cmdDispatch(args) {
     error: r.error || '',
   }));
   writeResults(args.out, flat, ['bm', 'phoneId', 'ok', 'sent', 'failed', 'skipped', 'total', 'error']);
+
+  // CSV detalhado por envio (com messageId) para reconciliar com o webhook
+  const sendsOut = args['sends-out'];
+  if (sendsOut && sendsOut !== true) {
+    const sends = results.flatMap((r) => r.sends || []);
+    writeResults(sendsOut, sends, ['bm', 'phoneId', 'to', 'messageId', 'sendStatus', 'error']);
+  }
+}
+
+async function cmdReconcile(args) {
+  const sendsPath = requireArg(args, 'sends');
+  const statusPath = requireArg(args, 'status');
+  const { rows, summary } = reconcileFiles(sendsPath, statusPath);
+  const out = args.out && args.out !== true ? args.out : undefined;
+  if (out) {
+    writeResults(out, rows, ['bm', 'to', 'messageId', 'finalStatus', 'errorCode', 'errorTitle', 'sendError']);
+  } else {
+    // sem --out, imprime o resumo
+    const txt = Object.entries(summary).map(([k, v]) => `  ${k}: ${v}`).join('\n');
+    logger.info(`Resumo por status final:\n${txt}`);
+  }
 }
 
 async function cmdWebhook(args) {
@@ -223,6 +252,9 @@ async function main() {
         break;
       case 'webhook':
         await cmdWebhook(args);
+        break;
+      case 'reconcile':
+        await cmdReconcile(args);
         break;
       case 'help':
       case undefined:
