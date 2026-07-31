@@ -85,6 +85,8 @@ dispatch:
   --recipients <arquivo>   CSV de destinatários (coluna phone; body1,body2,... para variáveis)
   --batch-size <n>         BMs por lote (padrão: 250)
   --limit <n>              Trava de segurança: máx. de mensagens na rodada (0 = sem limite)
+  --require-approved       Antes de enviar, checa o template em cada BM e
+                           BLOQUEIA as que não estão APPROVED (recomendado)
   --sends-out <arquivo>    CSV detalhado por envio (com messageId), p/ reconciliar
   --bm-concurrency <n>     BMs simultâneas dentro do lote (padrão: 25)
   --rcpt-concurrency <n>   Envios simultâneos por BM (padrão: 10)
@@ -155,17 +157,40 @@ async function cmdDispatch(args) {
     throw new Error(`--api inválido: "${api}" (use "cloud" ou "mmlite")`);
   }
   const maxMessages = Number(args.limit) || 0;
+  const requireApproved = !!args['require-approved'];
 
   if (args['dry-run']) {
     const limitTxt = maxMessages > 0 ? ` (limite=${maxMessages} msgs)` : '';
+    const guardTxt = requireApproved ? ' [só BMs com template APPROVED]' : '';
     logger.info(
       `[dry-run] Disparo (${api}) de "${templateName}" para ${bms.length} BM(s) em lotes de ${batchSize}, ` +
-        `${recipients.length} destinatário(s) por BM${limitTxt}`
+        `${recipients.length} destinatário(s) por BM${limitTxt}${guardTxt}`
     );
     return;
   }
 
-  const results = await dispatchInBatches(bms, {
+  // Trava de segurança: só dispara nas BMs onde o template está APPROVED.
+  let targetBMs = bms;
+  if (requireApproved) {
+    logger.info('Verificando aprovação do template antes de disparar...');
+    const status = await checkTemplatesOnBMs(bms, {
+      name: templateName,
+      concurrency: Number(args.concurrency) || 10,
+      version: args.version,
+    });
+    const approvedNames = new Set(status.filter((s) => s.status === 'APPROVED').map((s) => s.bm));
+    targetBMs = bms.filter((b) => approvedNames.has(b.name));
+    const blocked = bms.length - targetBMs.length;
+    if (blocked > 0) {
+      logger.warn(`${blocked} BM(s) sem template APPROVED foram BLOQUEADAS (não vão receber disparo)`);
+    }
+    if (targetBMs.length === 0) {
+      logger.error('Nenhuma BM com o template aprovado. Disparo abortado.');
+      return;
+    }
+  }
+
+  const results = await dispatchInBatches(targetBMs, {
     templateName,
     languageCode: args.lang || 'pt_BR',
     recipients,

@@ -65,7 +65,9 @@ Sem `--name`, resume a contagem por status em cada BM. Com `--name`, mostra o st
 
 ## 3) Disparar mensagens em lotes de 250
 
-Os templates precisam já estar **aprovados** nas BMs. Monte um `recipients.csv` com a coluna `phone` e, se o template tiver variáveis no corpo, colunas `body1`, `body2`, … na ordem:
+Os templates precisam já estar **aprovados** nas BMs (veja o passo 2). Para não errar a ordem, use `--require-approved`: antes de enviar, o comando checa o template em cada BM e **bloqueia** as que não estão `APPROVED`.
+
+Monte um `recipients.csv` com a coluna `phone` e, se o template tiver variáveis no corpo, colunas `body1`, `body2`, … na ordem:
 
 ```csv
 phone,body1
@@ -80,6 +82,7 @@ node src/cli.js dispatch \
   --api mmlite \
   --lang pt_BR \
   --recipients recipients.csv \
+  --require-approved \
   --batch-size 250 \
   --limit 500 \
   --bm-concurrency 25 \
