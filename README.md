@@ -108,6 +108,24 @@ Como funciona o disparo:
 
 Por padrão, **a mesma lista de destinatários** é usada em todas as BMs. Para listas diferentes por BM, dá para estender `dispatchInBatches` passando um `recipientsByBM` (Map `name -> recipients[]`) — o suporte já existe em `src/dispatch.js`.
 
+## 4) Receber status de entrega (webhook)
+
+Para saber quem **recebeu / leu / falhou**, suba o servidor de webhook e cadastre a URL no painel da Meta (produto WhatsApp → Configuração → Webhooks), assinando o campo `messages`:
+
+```bash
+node src/cli.js webhook \
+  --verify-token meutoken \
+  --app-secret <APP_SECRET> \
+  --port 3000 \
+  --out status.csv
+```
+
+- **Handshake**: a Meta faz um `GET` com `hub.verify_token`; o servidor devolve o `hub.challenge` se o token bater.
+- **Eventos**: cada `POST` traz status (`sent`/`delivered`/`read`/`failed`) e é validado pela assinatura `X-Hub-Signature-256` usando o App Secret. Sem App Secret, roda em modo dev **sem validar** (não use assim em produção).
+- Cada status vira uma linha em `--out status.csv` (com `messageId`, `recipient`, `status`, `errorCode`), permitindo cruzar com os `messageId` retornados no disparo.
+
+> A URL precisa ser pública e HTTPS para a Meta alcançar. Em produção, ponha atrás de um proxy/reverso com TLS (nginx, Caddy) ou um túnel para testes.
+
 ## Opções úteis
 
 - `--dry-run` — valida os arquivos e mostra o que seria feito, **sem chamar a API**.
@@ -125,16 +143,17 @@ Por padrão, **a mesma lista de destinatários** é usada em todas as BMs. Para 
 
 ```
 src/
-  cli.js         # entrada da linha de comando (upload-templates, dispatch)
+  cli.js         # entrada da linha de comando (upload/check/dispatch/webhook)
   config.js      # carrega BMs, template e destinatários
   metaClient.js  # cliente da Graph API (retry, rate limit)
-  templates.js   # upload de template em massa
-  dispatch.js    # disparo em lotes de 250
-  batch.js       # chunk + concorrência
+  templates.js   # upload e checagem de templates em massa
+  dispatch.js    # disparo em lotes de 250 (Cloud API / MM Lite, --limit)
+  webhook.js     # servidor de webhook de status (assinatura, CSV)
+  batch.js       # chunk + concorrência + budget (--limit)
   csv.js         # parser/serializador CSV
   logger.js      # logs
 examples/        # exemplos de bms/template/recipients
-test/            # testes unitários (node --test)
+test/            # testes unitários e de integração (node --test)
 ```
 
 ## Testes

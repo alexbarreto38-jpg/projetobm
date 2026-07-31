@@ -5,18 +5,21 @@
 //   upload-templates  Sobe um template para várias BMs em massa
 //   check-templates   Consulta o status de aprovação dos templates nas BMs
 //   dispatch          Dispara mensagens de template das BMs em lotes de 250
+//   webhook           Recebe status de entrega (sent/delivered/read/failed)
 //
 // Exemplos:
 //   projetobm upload-templates --bms bms.csv --template template.json
 //   projetobm check-templates --bms bms.csv --name meu_template
 //   projetobm dispatch --bms bms.csv --recipients recipients.csv \
 //       --template-name meu_template --lang pt_BR --batch-size 250
+//   projetobm webhook --port 3000 --verify-token meutoken --out status.csv
 
 import fs from 'node:fs';
 import { logger } from './logger.js';
 import { loadBMs, loadTemplate, loadRecipients } from './config.js';
 import { uploadTemplateToBMs, checkTemplatesOnBMs } from './templates.js';
 import { dispatchInBatches } from './dispatch.js';
+import { startWebhookServer } from './webhook.js';
 import { toCSV } from './csv.js';
 
 function parseArgs(argv) {
@@ -53,6 +56,7 @@ Uso:
   projetobm upload-templates --bms <bms.csv> --template <template.json> [opções]
   projetobm check-templates --bms <bms.csv> [--name <template>] [opções]
   projetobm dispatch --bms <bms.csv> --template-name <nome> [opções]
+  projetobm webhook --verify-token <token> [--port 3000] [--out status.csv]
 
 Opções comuns:
   --bms <arquivo>          CSV de BMs (colunas: name,token,waba_id,phone_id)
@@ -80,6 +84,13 @@ dispatch:
   --bm-concurrency <n>     BMs simultâneas dentro do lote (padrão: 25)
   --rcpt-concurrency <n>   Envios simultâneos por BM (padrão: 10)
   --delay-batches <ms>     Espera entre lotes em ms (padrão: 0)
+
+webhook:
+  --verify-token <token>   Token do handshake (ou env WEBHOOK_VERIFY_TOKEN)
+  --app-secret <segredo>   App Secret p/ validar assinatura (ou env META_APP_SECRET)
+  --port <n>               Porta HTTP (padrão: 3000)
+  --path <caminho>         Caminho do endpoint (padrão: /webhook)
+  --out <status.csv>       Anexa os status recebidos neste CSV
 `);
 }
 
@@ -163,6 +174,29 @@ async function cmdDispatch(args) {
   writeResults(args.out, flat, ['bm', 'phoneId', 'ok', 'sent', 'failed', 'skipped', 'total', 'error']);
 }
 
+async function cmdWebhook(args) {
+  const verifyToken =
+    (args['verify-token'] !== true && args['verify-token']) || process.env.WEBHOOK_VERIFY_TOKEN;
+  const appSecret = process.env.META_APP_SECRET || (args['app-secret'] !== true && args['app-secret']);
+  if (!verifyToken) {
+    throw new Error('Informe --verify-token ou a env WEBHOOK_VERIFY_TOKEN');
+  }
+  if (!appSecret) {
+    logger.warn('Sem App Secret (--app-secret / META_APP_SECRET): assinatura NÃO será validada');
+  }
+
+  await startWebhookServer({
+    port: Number(args.port) || 3000,
+    path: (args.path !== true && args.path) || '/webhook',
+    verifyToken,
+    appSecret: appSecret || undefined,
+    out: args.out,
+  });
+  logger.info('Ctrl+C para encerrar. Aguardando eventos da Meta...');
+  // mantém o processo vivo
+  await new Promise(() => {});
+}
+
 function requireArg(args, name) {
   const v = args[name];
   if (!v || v === true) {
@@ -186,6 +220,9 @@ async function main() {
         break;
       case 'dispatch':
         await cmdDispatch(args);
+        break;
+      case 'webhook':
+        await cmdWebhook(args);
         break;
       case 'help':
       case undefined:
