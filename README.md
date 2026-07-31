@@ -148,6 +148,25 @@ O `reconcile` junta os dois por `messageId` e resolve o **status final** de cada
 
 Sem `--out`, imprime só o resumo (ex.: `read=1 failed=1 send_failed=1`).
 
+## 6) Reprocessar só quem falhou
+
+A partir do `final.csv`, reenvie o template apenas para os destinatários que falharam — cada um volta para a **sua** BM automaticamente:
+
+```bash
+node src/cli.js retry \
+  --bms bms.csv \
+  --from final.csv \
+  --template-name promo_boas_vindas \
+  --recipients recipients.csv \
+  --sends-out retry-sends.csv
+```
+
+- Por padrão reprocessa `failed` e `send_failed`. Use `--statuses failed,send_failed,no_status` ou `--include-no-status` para incluir os sem retorno (cuidado: pode duplicar quem ainda vai receber status).
+- `--recipients` (opcional) recupera as **variáveis originais** do template por telefone; sem ele, reenvia sem variáveis.
+- Aceita as mesmas opções do `dispatch` (`--api`, `--limit`, `--batch-size`, concorrência…). Gera um novo `--sends-out` que você pode reconciliar de novo — fechando o loop.
+
+> Fluxo completo: `dispatch → webhook → reconcile → retry → (reconcile de novo)`.
+
 ## Opções úteis
 
 - `--dry-run` — valida os arquivos e mostra o que seria feito, **sem chamar a API**.
@@ -172,6 +191,7 @@ src/
   dispatch.js    # disparo em lotes de 250 (Cloud API / MM Lite, --limit)
   webhook.js     # servidor de webhook de status (assinatura, CSV)
   reconcile.js   # cruza disparo × status de entrega
+  retry.js       # plano de reenvio (só quem falhou) por BM
   batch.js       # chunk + concorrência + budget (--limit)
   csv.js         # parser/serializador CSV
   logger.js      # logs

@@ -21,6 +21,7 @@ import { uploadTemplateToBMs, checkTemplatesOnBMs } from './templates.js';
 import { dispatchInBatches } from './dispatch.js';
 import { startWebhookServer } from './webhook.js';
 import { reconcileFiles } from './reconcile.js';
+import { planRetry, loadFinalReport, DEFAULT_RETRY_STATUSES } from './retry.js';
 import { toCSV } from './csv.js';
 
 function parseArgs(argv) {
@@ -59,6 +60,7 @@ Uso:
   projetobm dispatch --bms <bms.csv> --template-name <nome> [opções]
   projetobm webhook --verify-token <token> [--port 3000] [--out status.csv]
   projetobm reconcile --sends <sends.csv> --status <status.csv> [--out final.csv]
+  projetobm retry --bms <bms.csv> --from <final.csv> --template-name <nome> [opções]
 
 Opções comuns:
   --bms <arquivo>          CSV de BMs (colunas: name,token,waba_id,phone_id)
@@ -99,6 +101,13 @@ reconcile:
   --sends <arquivo>        CSV de envios gerado pelo dispatch (--sends-out)
   --status <arquivo>       CSV de status gerado pelo webhook (--out)
   --out <final.csv>        Salva o relatório final; sem --out, imprime o resumo
+
+retry (reprocessa só quem falhou; aceita as mesmas opções de dispatch):
+  --from <final.csv>       Relatório da reconciliação
+  --template-name <nome>   Template a reenviar
+  --statuses <a,b>         Status a reprocessar (padrão: failed,send_failed)
+  --include-no-status      Também reenvia os "no_status" (cuidado: pode duplicar)
+  --recipients <arquivo>   CSV original, p/ recuperar as variáveis do template
 `);
 }
 
@@ -203,6 +212,73 @@ async function cmdReconcile(args) {
   }
 }
 
+async function cmdRetry(args) {
+  const bms = loadBMs(requireArg(args, 'bms'));
+  const templateName = requireArg(args, 'template-name');
+  const finalRows = loadFinalReport(requireArg(args, 'from'));
+
+  // status a reprocessar (padrão: failed,send_failed)
+  const statuses =
+    args.statuses && args.statuses !== true
+      ? String(args.statuses).split(',').map((s) => s.trim()).filter(Boolean)
+      : DEFAULT_RETRY_STATUSES.slice();
+  if (args['include-no-status'] && !statuses.includes('no_status')) {
+    statuses.push('no_status');
+  }
+
+  // recupera variáveis originais do template por telefone, se informado
+  let recipientsByPhone;
+  if (args.recipients && args.recipients !== true) {
+    recipientsByPhone = new Map();
+    for (const r of loadRecipients(args.recipients)) recipientsByPhone.set(r.phone, r);
+  }
+
+  const { byBM, count, byStatus } = planRetry(finalRows, { statuses, recipientsByPhone });
+  const statusTxt = Object.entries(byStatus).map(([k, v]) => `${k}=${v}`).join(' ') || 'nenhum';
+  logger.info(`Reprocessar [${statuses.join(',')}]: ${count} destinatário(s) [${statusTxt}]`);
+
+  if (count === 0) {
+    logger.info('Nada a reprocessar.');
+    return;
+  }
+
+  // só as BMs que têm alguém para reenviar
+  const targetBMs = bms.filter((b) => byBM.has(b.name));
+  const semToken = [...byBM.keys()].filter((name) => !bms.some((b) => b.name === name));
+  if (semToken.length) {
+    logger.warn(`BM(s) do relatório sem credencial no --bms (ignoradas): ${semToken.join(', ')}`);
+  }
+
+  const api = (args.api || 'cloud').toLowerCase();
+  if (!['cloud', 'mmlite'].includes(api)) {
+    throw new Error(`--api inválido: "${api}" (use "cloud" ou "mmlite")`);
+  }
+
+  if (args['dry-run']) {
+    logger.info(`[dry-run] Reenviaria "${templateName}" (${api}) para ${count} destinatário(s) em ${targetBMs.length} BM(s)`);
+    return;
+  }
+
+  const results = await dispatchInBatches(targetBMs, {
+    templateName,
+    languageCode: args.lang || 'pt_BR',
+    recipientsByBM: byBM,
+    batchSize: Number(args['batch-size']) || 250,
+    api,
+    maxMessages: Number(args.limit) || 0,
+    bmConcurrency: Number(args['bm-concurrency']) || 25,
+    recipientConcurrency: Number(args['rcpt-concurrency']) || 10,
+    delayBetweenBatchesMs: Number(args['delay-batches']) || 0,
+    version: args.version,
+  });
+
+  const sendsOut = args['sends-out'];
+  if (sendsOut && sendsOut !== true) {
+    const sends = results.flatMap((r) => r.sends || []);
+    writeResults(sendsOut, sends, ['bm', 'phoneId', 'to', 'messageId', 'sendStatus', 'error']);
+  }
+}
+
 async function cmdWebhook(args) {
   const verifyToken =
     (args['verify-token'] !== true && args['verify-token']) || process.env.WEBHOOK_VERIFY_TOKEN;
@@ -255,6 +331,9 @@ async function main() {
         break;
       case 'reconcile':
         await cmdReconcile(args);
+        break;
+      case 'retry':
+        await cmdRetry(args);
         break;
       case 'help':
       case undefined:
