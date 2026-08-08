@@ -8,19 +8,25 @@ Business Platform**, usando **exclusivamente** APIs e fluxos **oficiais da Meta*
 
 ## Status
 
-**Fase 1 — fundação** (este estágio):
+**Fase 1 — fundação + backend** (este estágio):
 
 - ✅ Monorepo pnpm + Turborepo, TypeScript estrito
-- ✅ Schema Prisma multi-tenant completo (todas as entidades da spec §9)
+- ✅ Schema Prisma multi-tenant completo + migração inicial (spec §9)
 - ✅ Camada Meta base: `MetaGraphClient`, `CredentialVault`, `MetaApiError`,
   verificação de webhook, `Legacy`/`New` account adapters (spec §3, §5, §8, §59)
-- ✅ `@wise/config` (env validado por Zod), `@wise/types` (RBAC + capabilities),
-  `@wise/logger` (logs com redação de segredos)
-- ✅ Testes unitários (vault, assinatura de webhook, mapeamento de erros)
-- ✅ CI (lint, typecheck, test, build) e documentação Meta versionada
+- ✅ `@wise/config`, `@wise/types` (RBAC + capabilities), `@wise/logger`
+  (redação de segredos), `@wise/validation` (Zod)
+- ✅ `@wise/auth`: sessão JWT (cookie HttpOnly/SameSite/Secure), hashing scrypt,
+  guards RBAC + isolamento por tenant (spec §10, §34, §47)
+- ✅ `apps/api` (Fastify): `/api/auth/{signup,login,logout,me}` e
+  `/api/organizations` (CRUD + membros) com autorização no backend
+- ✅ **41 testes** (unitários + integração contra Postgres real): vault,
+  webhook, erros Meta, senha, sessão, autorização, isolamento multi-tenant, RBAC
+- ✅ CI (Postgres service, migrate, lint, typecheck, test, build)
 
-Próximas fases (Auth/Organizations UI, sync, webhooks endpoint, templates,
-contatos, campanhas, workers) em `docs/architecture/overview.md`.
+Próximo: `apps/web` (painel Next.js) consumindo a API; depois Embedded Signup,
+sync, webhooks endpoint, templates, contatos, campanhas, workers
+(`docs/architecture/overview.md`).
 
 ## Stack
 

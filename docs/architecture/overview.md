@@ -25,22 +25,31 @@ Os seis primeiros nunca são sacrificados por velocidade.
 
 ```
 apps/
-  web/       Next.js + React + TS + Tailwind + shadcn/ui (painel)
-  api/       Node.js + TS (REST/route handlers, webhooks, auth)
-  worker/    BullMQ workers (deployments, campanhas, envio, webhooks, sync)
+  api/       Fastify + TS — auth, organizations, RBAC (webhooks/Meta nas próximas fases)  ✅
+  web/       Next.js + React + TS + Tailwind + shadcn/ui (painel)                          ⚪ próximo
+  worker/    BullMQ workers (deployments, campanhas, envio, webhooks, sync)                ⚪
 packages/
-  database/       Prisma schema + client (@wise/database)
-  meta-provider/  Camada Meta: MetaGraphClient, adapters, CredentialVault (@wise/meta-provider)
-  config/         Env validado por Zod (@wise/config)
-  types/          RBAC, capabilities, tipos compartilhados (@wise/types)
-  logger/         Logs estruturados com redação de segredos (@wise/logger)
-  queue/          Definições BullMQ (filas/jobs) — Fase 4/8 (@wise/queue)
-  auth/           Auth.js + RBAC helpers — Fase 1 (@wise/auth)
-  validation/     Schemas Zod compartilhados — Fase 1+ (@wise/validation)
+  database/       Prisma schema + client + migrations (@wise/database)      ✅
+  meta-provider/  Camada Meta: MetaGraphClient, adapters, CredentialVault (@wise/meta-provider)  ✅
+  config/         Env validado por Zod (@wise/config)                       ✅
+  types/          RBAC, capabilities, tipos compartilhados (@wise/types)    ✅
+  logger/         Logs estruturados com redação de segredos (@wise/logger)  ✅
+  auth/           Sessão (JWT), hashing (scrypt), guards RBAC (@wise/auth)  ✅
+  validation/     Schemas Zod compartilhados (@wise/validation)             ✅
+  queue/          Definições BullMQ (filas/jobs) — Fase 4/8 (@wise/queue)   ⚪
 docs/
   architecture/   este documento
   meta/           documentação verificada contra a Meta (§65)
 ```
+
+### Autenticação (Fase 1)
+
+`apps/api` (Fastify) é a autoridade de sessão: emite um **JWT em cookie
+HttpOnly/SameSite/Secure** (spec §47), senhas com **scrypt** (`@wise/auth`).
+Papéis/permissões são resolvidos do banco a cada request — o token só
+identifica o usuário (§10). Rotas: `/api/auth/{signup,login,logout,me}` e
+`/api/organizations` (CRUD + membros) com isolamento por tenant e RBAC. O painel
+`apps/web` consumirá esta API (Auth.js no cliente é uma opção da próxima fase).
 
 Gerenciado por **pnpm workspaces + Turborepo**. Todo código é TypeScript.
 
@@ -88,7 +97,7 @@ Ver `docs/meta/account-model-2026.md`. Resumo:
 
 | Fase | Entrega | Status |
 |------|---------|--------|
-| 1 | Monorepo, Prisma, config, RBAC, Auth, Organizations | 🟡 fundação neste commit |
+| 1 | Monorepo, Prisma, config, RBAC, Auth, Organizations | 🟢 backend pronto (falta UI web) |
 | 2 | MetaGraphClient, CredentialVault, MetaConnection, Embedded Signup | 🟡 base pronta (client/vault) |
 | 3 | Sincronização: Business, contas, números | ⚪ |
 | 4 | Webhooks: endpoint, storage, fila de processamento | 🟡 verify pronto |
