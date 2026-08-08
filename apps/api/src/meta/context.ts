@@ -12,6 +12,8 @@ export interface MetaContext {
   configId?: string;
   graphVersion: string;
   defaultRedirectUri?: string;
+  /** Token de verificação do handshake de webhook (spec §30). */
+  webhookVerifyToken?: string;
 }
 
 export interface MetaEnv {
@@ -23,6 +25,7 @@ export interface MetaEnv {
   encryptionKeyPrevious?: string;
   configId?: string;
   defaultRedirectUri?: string;
+  webhookVerifyToken?: string;
 }
 
 /** Monta o MetaContext a partir de variáveis de ambiente já validadas. */
@@ -42,5 +45,6 @@ export function buildMetaContext(envValues: MetaEnv): MetaContext {
     configId: envValues.configId,
     graphVersion: envValues.graphVersion,
     defaultRedirectUri: envValues.defaultRedirectUri,
+    webhookVerifyToken: envValues.webhookVerifyToken,
   };
 }

@@ -24,14 +24,18 @@ Business Platform**, usando **exclusivamente** APIs e fluxos **oficiais da Meta*
   code→token, `CredentialVault` ligado ao banco, descoberta e persistência de
   WABA + números, assinatura de webhooks, health check — idempotente
 - ✅ **MetaMockServer** (spec §61) para simular a Graph API em testes
-- ✅ **51 testes** (unitários + integração contra Postgres real): vault, webhook,
-  erros Meta, senha, sessão, autorização, isolamento multi-tenant, RBAC, conexão
-  Meta (descoberta, token cifrado em repouso, idempotência, propagação de erro)
-- ✅ CI (Postgres service, migrate, lint, typecheck, test, build)
+- ✅ **Webhooks (Fase 4):** endpoint `/api/webhooks/meta/whatsapp` (handshake +
+  verificação de assinatura sobre corpo bruto), dedupe, persistência do evento
+  bruto e enfileiramento; `@wise/queue` (BullMQ) + `apps/worker` processando
+  status de mensagens e templates
+- ✅ **61 testes** (unitários + integração contra Postgres real + round-trip real
+  de BullMQ/Redis): vault, webhook, erros Meta, senha, sessão, autorização,
+  isolamento multi-tenant, RBAC, conexão Meta, ingestão/dedupe e processamento
+  de webhook
+- ✅ CI (serviços Postgres + Redis, migrate, lint, typecheck, test, build)
 
-Próximo: `apps/web` (painel Next.js) consumindo a API; webhooks endpoint +
-fila; templates, contatos, campanhas, workers
-(`docs/architecture/overview.md`).
+Próximo: `apps/web` (painel Next.js) consumindo a API; templates + Bulk Manager;
+contatos; campanhas + preflight; envio (`docs/architecture/overview.md`).
 
 ## Stack
 

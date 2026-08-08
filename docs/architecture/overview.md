@@ -25,9 +25,9 @@ Os seis primeiros nunca são sacrificados por velocidade.
 
 ```
 apps/
-  api/       Fastify + TS — auth, organizations, RBAC (webhooks/Meta nas próximas fases)  ✅
-  web/       Next.js + React + TS + Tailwind + shadcn/ui (painel)                          ⚪ próximo
-  worker/    BullMQ workers (deployments, campanhas, envio, webhooks, sync)                ⚪
+  api/       Fastify + TS — auth, organizations, RBAC, conexão Meta, webhooks    ✅
+  web/       Next.js + React + TS + Tailwind + shadcn/ui (painel)                 ⚪ próximo
+  worker/    BullMQ workers — webhook-processing (demais filas nas fases seguintes)  ✅
 packages/
   database/       Prisma schema + client + migrations (@wise/database)      ✅
   meta-provider/  Camada Meta: MetaGraphClient, adapters, CredentialVault (@wise/meta-provider)  ✅
@@ -36,7 +36,7 @@ packages/
   logger/         Logs estruturados com redação de segredos (@wise/logger)  ✅
   auth/           Sessão (JWT), hashing (scrypt), guards RBAC (@wise/auth)  ✅
   validation/     Schemas Zod compartilhados (@wise/validation)             ✅
-  queue/          Definições BullMQ (filas/jobs) — Fase 4/8 (@wise/queue)   ⚪
+  queue/          Filas/jobs BullMQ + conexão Redis (@wise/queue)           ✅
 docs/
   architecture/   este documento
   meta/           documentação verificada contra a Meta (§65)
@@ -100,7 +100,7 @@ Ver `docs/meta/account-model-2026.md`. Resumo:
 | 1 | Monorepo, Prisma, config, RBAC, Auth, Organizations | 🟢 backend pronto (falta UI web) |
 | 2 | MetaGraphClient, CredentialVault, MetaConnection, Embedded Signup | 🟢 conexão + descoberta prontas (testado via mock) |
 | 3 | Sincronização: Business, contas, números | 🟡 sync por conta pronto (job periódico depois) |
-| 4 | Webhooks: endpoint, storage, fila de processamento | 🟡 verify pronto |
+| 4 | Webhooks: endpoint, storage, fila de processamento | 🟢 endpoint + fila + worker prontos |
 | 5 | Templates, deployments, Bulk Template Manager | ⚪ |
 | 6 | Contatos, import CSV, opt-in/opt-out | ⚪ |
 | 7 | Campanhas, Preflight, CampaignRouter | ⚪ |

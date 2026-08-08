@@ -2,6 +2,8 @@ import { prisma } from '@wise/database';
 import { logger } from '@wise/logger';
 import { buildApp } from './app.js';
 import { buildMetaContext, type MetaContext } from './meta/context.js';
+import { BullMqWebhookEnqueuer } from './queue/bullmqEnqueuer.js';
+import type { WebhookEnqueuer } from './queue/enqueuer.js';
 
 /**
  * Bootstrap do servidor de API. Segredos vêm do ambiente; nunca hardcoded.
@@ -26,10 +28,18 @@ async function main() {
       encryptionKeyPrevious: process.env.ENCRYPTION_KEY_PREVIOUS,
       configId: process.env.META_CONFIG_ID,
       defaultRedirectUri: process.env.META_REDIRECT_URI,
+      webhookVerifyToken: process.env.META_WEBHOOK_VERIFY_TOKEN,
     });
     logger.info('Contexto Meta habilitado.');
   } else {
     logger.warn('Variáveis Meta ausentes — rotas /meta desabilitadas nesta instância.');
+  }
+
+  let webhookEnqueuer: WebhookEnqueuer | undefined;
+  if (process.env.REDIS_URL) {
+    webhookEnqueuer = new BullMqWebhookEnqueuer(process.env.REDIS_URL);
+  } else {
+    logger.warn('REDIS_URL ausente — webhooks não serão enfileirados.');
   }
 
   const app = await buildApp({
@@ -37,6 +47,7 @@ async function main() {
     authSecret,
     secureCookies: process.env.NODE_ENV === 'production',
     meta,
+    webhookEnqueuer,
   });
 
   const port = Number(process.env.API_PORT ?? 3001);

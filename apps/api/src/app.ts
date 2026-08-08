@@ -17,6 +17,8 @@ import type { MetaContext } from './meta/context.js';
 import { registerAuthRoutes } from './modules/auth/routes.js';
 import { registerMetaRoutes } from './modules/meta/routes.js';
 import { registerOrganizationRoutes } from './modules/organizations/routes.js';
+import { registerWebhookRoutes } from './modules/webhooks/routes.js';
+import type { WebhookEnqueuer } from './queue/enqueuer.js';
 
 export interface AppConfig {
   prisma: PrismaClient;
@@ -30,6 +32,8 @@ export interface AppConfig {
    * registradas — permite subir a API sem credenciais Meta na Fase 1.
    */
   meta?: MetaContext;
+  /** Enfileirador de webhooks (BullMQ em prod, fake em testes). */
+  webhookEnqueuer?: WebhookEnqueuer;
 }
 
 declare module 'fastify' {
@@ -130,6 +134,18 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     },
     { prefix: '/api' },
   );
+
+  // Webhooks em escopo próprio: usa content-type parser de corpo bruto, isolado
+  // do parser JSON das demais rotas. Registrado após o error handler.
+  if (config.meta) {
+    const meta = config.meta;
+    await app.register(
+      async (instance) => {
+        await registerWebhookRoutes(instance, config, meta);
+      },
+      { prefix: '/api/webhooks/meta' },
+    );
+  }
 
   return app;
 }

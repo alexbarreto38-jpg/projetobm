@@ -29,6 +29,27 @@ Meta → endpoint
 - **Webhook como source de eventos** (spec §51): preferir webhook a polling para
   status de mensagens.
 
+## Implementação atual (Fase 4)
+
+- **Endpoint** `apps/api` (`WebhookIngestService`): `GET/POST /api/webhooks/meta/whatsapp`.
+  - `GET`: handshake — retorna `hub.challenge` só se `hub.verify_token` bater com
+    `META_WEBHOOK_VERIFY_TOKEN`; senão 403.
+  - `POST`: valida `X-Hub-Signature-256` sobre o **corpo bruto** (content-type
+    parser dedicado, isolado do parser JSON das demais rotas); assinatura
+    inválida → 401 e nada é persistido.
+- **Dedupe**: `dedupeKey = sha256(corpo bruto)` com unique em `webhook_events`;
+  redelivery idêntica retorna `{deduped:true}` sem novo registro.
+- **Fila**: após persistir, enfileira em `webhook-processing` (BullMQ) via um
+  `WebhookEnqueuer` injetável (fake em testes). Resposta rápida (200).
+- **Worker** `apps/worker` (`processWebhookEvent`): lê o evento, aplica
+  `statuses[]` → `Message`/`MessageEvent` (mapeando estados externos→internos,
+  raw preservado) e `message_template_status_update` → `TemplateDeployment`.
+  Idempotente: evento já `PROCESSED` não reprocessa.
+
+> Testado contra Postgres real (processamento) e **round-trip real de BullMQ +
+> Redis** (enqueue → worker → PROCESSED), além de handshake/assinatura/dedupe na
+> ingestão.
+
 ## Campos de interesse (legado)
 
 - `messages` (mensagens recebidas), `statuses` (sent/delivered/read/failed),

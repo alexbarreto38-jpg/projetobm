@@ -1,30 +1,22 @@
 {
-  "name": "@wise/api",
+  "name": "@wise/worker",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "main": "./src/server.ts",
+  "main": "./src/index.ts",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "start": "tsx src/server.ts",
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@fastify/cookie": "^9.3.1",
-    "@fastify/helmet": "^11.1.1",
-    "@fastify/rate-limit": "^9.1.0",
-    "@wise/auth": "workspace:*",
     "@wise/database": "workspace:*",
     "@wise/logger": "workspace:*",
-    "@wise/meta-provider": "workspace:*",
     "@wise/queue": "workspace:*",
-    "@wise/types": "workspace:*",
-    "@wise/validation": "workspace:*",
-    "fastify": "^4.28.1",
-    "zod": "^3.23.0"
+    "@wise/types": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.16.0",
