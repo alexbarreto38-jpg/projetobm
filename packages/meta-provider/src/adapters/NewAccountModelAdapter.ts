@@ -2,6 +2,7 @@ import type { AccountCapabilities } from '@wise/types';
 import type { MetaGraphClient } from '../graph/MetaGraphClient.js';
 import { MetaApiError } from '../errors/MetaApiError.js';
 import type {
+  AccountInfo,
   AdapterContext,
   CreateTemplateInput,
   HealthReport,
@@ -41,6 +42,10 @@ export class NewAccountModelAdapter implements WhatsAppAccountAdapter {
       coexistence: false,
       phoneIdentitySeparation: true,
     };
+  }
+
+  async getAccountInfo(_ctx: AdapterContext): Promise<AccountInfo> {
+    throw notImplemented('getAccountInfo');
   }
 
   async listPhoneNumbers(_ctx: AdapterContext): Promise<PhoneNumberInfo[]> {

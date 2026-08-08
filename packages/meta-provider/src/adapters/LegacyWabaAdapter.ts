@@ -1,6 +1,7 @@
 import type { AccountCapabilities } from '@wise/types';
 import type { MetaGraphClient } from '../graph/MetaGraphClient.js';
 import type {
+  AccountInfo,
   AdapterContext,
   CreateTemplateInput,
   HealthReport,
@@ -35,6 +36,21 @@ export class LegacyWabaAdapter implements WhatsAppAccountAdapter {
       messagingAccountTemplates: false,
       coexistence: false,
       phoneIdentitySeparation: false,
+    };
+  }
+
+  async getAccountInfo(ctx: AdapterContext): Promise<AccountInfo> {
+    const res = await this.graph.get<RawWaba>(`${ctx.externalAccountId}`, {
+      accessToken: ctx.accessToken,
+      requestId: ctx.requestId,
+      query: { fields: 'id,name,currency,timezone_id,account_review_status' },
+    });
+    return {
+      externalAccountId: res.id ?? ctx.externalAccountId,
+      name: res.name,
+      currency: res.currency,
+      timezone: res.timezone_id,
+      status: res.account_review_status,
     };
   }
 
@@ -140,6 +156,14 @@ export class LegacyWabaAdapter implements WhatsAppAccountAdapter {
       };
     }
   }
+}
+
+interface RawWaba {
+  id?: string;
+  name?: string;
+  currency?: string;
+  timezone_id?: string;
+  account_review_status?: string;
 }
 
 interface RawPhoneNumber {

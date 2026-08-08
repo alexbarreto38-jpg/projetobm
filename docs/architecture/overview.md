@@ -98,8 +98,8 @@ Ver `docs/meta/account-model-2026.md`. Resumo:
 | Fase | Entrega | Status |
 |------|---------|--------|
 | 1 | Monorepo, Prisma, config, RBAC, Auth, Organizations | 🟢 backend pronto (falta UI web) |
-| 2 | MetaGraphClient, CredentialVault, MetaConnection, Embedded Signup | 🟡 base pronta (client/vault) |
-| 3 | Sincronização: Business, contas, números | ⚪ |
+| 2 | MetaGraphClient, CredentialVault, MetaConnection, Embedded Signup | 🟢 conexão + descoberta prontas (testado via mock) |
+| 3 | Sincronização: Business, contas, números | 🟡 sync por conta pronto (job periódico depois) |
 | 4 | Webhooks: endpoint, storage, fila de processamento | 🟡 verify pronto |
 | 5 | Templates, deployments, Bulk Template Manager | ⚪ |
 | 6 | Contatos, import CSV, opt-in/opt-out | ⚪ |

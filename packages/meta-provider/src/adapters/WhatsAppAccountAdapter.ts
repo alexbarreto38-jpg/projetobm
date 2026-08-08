@@ -50,6 +50,15 @@ export interface SendMessageResult {
   externalMessageId?: string; // wamid
 }
 
+export interface AccountInfo {
+  externalAccountId: string;
+  name?: string;
+  currency?: string;
+  timezone?: string;
+  /** Estado bruto da conta reportado pela Meta, quando disponível. */
+  status?: string;
+}
+
 export interface HealthReport {
   connection: boolean;
   permission: boolean;
@@ -70,6 +79,7 @@ export interface WhatsAppAccountAdapter {
   readonly model: 'LEGACY' | 'NEW_MODEL';
 
   detectCapabilities(ctx: AdapterContext): Promise<AccountCapabilities>;
+  getAccountInfo(ctx: AdapterContext): Promise<AccountInfo>;
   listPhoneNumbers(ctx: AdapterContext): Promise<PhoneNumberInfo[]>;
   listTemplates(ctx: AdapterContext): Promise<TemplateInfo[]>;
   createTemplate(ctx: AdapterContext, input: CreateTemplateInput): Promise<TemplateInfo>;

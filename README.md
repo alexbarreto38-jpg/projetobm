@@ -20,12 +20,17 @@ Business Platform**, usando **exclusivamente** APIs e fluxos **oficiais da Meta*
   guards RBAC + isolamento por tenant (spec §10, §34, §47)
 - ✅ `apps/api` (Fastify): `/api/auth/{signup,login,logout,me}` e
   `/api/organizations` (CRUD + membros) com autorização no backend
-- ✅ **41 testes** (unitários + integração contra Postgres real): vault,
-  webhook, erros Meta, senha, sessão, autorização, isolamento multi-tenant, RBAC
+- ✅ **Conexão Meta (Fase 2):** Embedded Signup (callback server-side), troca de
+  code→token, `CredentialVault` ligado ao banco, descoberta e persistência de
+  WABA + números, assinatura de webhooks, health check — idempotente
+- ✅ **MetaMockServer** (spec §61) para simular a Graph API em testes
+- ✅ **51 testes** (unitários + integração contra Postgres real): vault, webhook,
+  erros Meta, senha, sessão, autorização, isolamento multi-tenant, RBAC, conexão
+  Meta (descoberta, token cifrado em repouso, idempotência, propagação de erro)
 - ✅ CI (Postgres service, migrate, lint, typecheck, test, build)
 
-Próximo: `apps/web` (painel Next.js) consumindo a API; depois Embedded Signup,
-sync, webhooks endpoint, templates, contatos, campanhas, workers
+Próximo: `apps/web` (painel Next.js) consumindo a API; webhooks endpoint +
+fila; templates, contatos, campanhas, workers
 (`docs/architecture/overview.md`).
 
 ## Stack

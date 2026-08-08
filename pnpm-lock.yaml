@@ -50,6 +50,9 @@ importers:
       '@wise/logger':
         specifier: workspace:*
         version: link:../../packages/logger
+      '@wise/meta-provider':
+        specifier: workspace:*
+        version: link:../../packages/meta-provider
       '@wise/types':
         specifier: workspace:*
         version: link:../../packages/types

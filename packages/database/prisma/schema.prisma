@@ -333,6 +333,9 @@ model WhatsAppAccount {
   templateDeployments TemplateDeployment[]
 
   @@unique([metaConnectionId, externalAccountId])
+  // Identidade funcional do ativo no tenant: garante idempotência ao reconectar
+  // a mesma WABA (evita contas duplicadas) — spec §19, §50.
+  @@unique([organizationId, externalAccountId])
   @@index([organizationId])
   @@index([accountModel])
   @@map("whatsapp_accounts")

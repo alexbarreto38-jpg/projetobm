@@ -1,6 +1,9 @@
+import { randomBytes } from 'node:crypto';
 import { PrismaClient } from '@wise/database';
+import { CredentialVault, MetaProvider, type MetaMockServer } from '@wise/meta-provider';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../app.js';
+import type { MetaContext } from '../meta/context.js';
 
 export const TEST_DB_URL = process.env.DATABASE_URL_TEST ?? process.env.DATABASE_URL;
 export const hasDb = Boolean(TEST_DB_URL);
@@ -23,13 +26,31 @@ export async function resetDb(prisma: PrismaClient): Promise<void> {
   );
 }
 
-export async function buildTestApp(prisma: PrismaClient): Promise<FastifyInstance> {
+export async function buildTestApp(
+  prisma: PrismaClient,
+  meta?: MetaContext,
+): Promise<FastifyInstance> {
   return buildApp({
     prisma,
     authSecret: TEST_AUTH_SECRET,
     secureCookies: false,
     enableRateLimit: false,
+    meta,
   });
+}
+
+/** MetaContext apoiado no MetaMockServer para testes (spec §61). */
+export function makeTestMeta(server: MetaMockServer): MetaContext {
+  const provider = new MetaProvider({
+    baseUrl: 'https://graph.facebook.com',
+    version: 'v23.0',
+    appId: 'TEST_APP_ID',
+    appSecret: 'TEST_APP_SECRET',
+    defaultRedirectUri: 'https://app.local/callback',
+    fetchImpl: server.fetch,
+  });
+  const vault = new CredentialVault([{ version: 1, key: randomBytes(32) }]);
+  return { provider, vault, appId: 'TEST_APP_ID', graphVersion: 'v23.0' };
 }
 
 /** Extrai o cookie de sessão de um header set-cookie para reusar em requests. */

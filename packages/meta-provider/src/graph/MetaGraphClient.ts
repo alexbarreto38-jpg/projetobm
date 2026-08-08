@@ -22,8 +22,12 @@ export interface GraphRequestOptions {
   query?: Record<string, string | number | boolean | undefined>;
   /** Corpo JSON (para POST). */
   body?: unknown;
-  /** Access token da conta/conexão. Nunca logado. */
-  accessToken: string;
+  /**
+   * Access token da conta/conexão. Nunca logado. Opcional para chamadas que
+   * não usam bearer (ex.: troca de code por token via /oauth/access_token, que
+   * autentica por client_id/client_secret na query).
+   */
+  accessToken?: string;
   /** Correlação para observabilidade. */
   requestId?: string;
   signal?: AbortSignal;
@@ -65,9 +69,10 @@ export class MetaGraphClient {
     }
 
     try {
-      const headers: Record<string, string> = {
-        Authorization: `Bearer ${options.accessToken}`,
-      };
+      const headers: Record<string, string> = {};
+      if (options.accessToken) {
+        headers.Authorization = `Bearer ${options.accessToken}`;
+      }
       let payload: string | undefined;
       if (options.body !== undefined) {
         headers['Content-Type'] = 'application/json';

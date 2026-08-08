@@ -19,6 +19,7 @@
     "@wise/auth": "workspace:*",
     "@wise/database": "workspace:*",
     "@wise/logger": "workspace:*",
+    "@wise/meta-provider": "workspace:*",
     "@wise/types": "workspace:*",
     "@wise/validation": "workspace:*",
     "fastify": "^4.28.1",

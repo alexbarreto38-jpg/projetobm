@@ -20,17 +20,69 @@ import {
  * MetaGraphClient, sempre confirmando endpoints na documentação oficial.
  */
 export interface MetaProviderConfig extends MetaGraphClientConfig {
+  appId: string;
   appSecret: string;
+  /** redirect_uri padrão usado na troca de code por token (Embedded Signup). */
+  defaultRedirectUri?: string;
+}
+
+export interface TokenExchangeResult {
+  accessToken: string;
+  tokenType?: string;
+  expiresInSeconds?: number;
 }
 
 export class MetaProvider {
   readonly graph: MetaGraphClient;
+  private readonly appId: string;
   private readonly appSecret: string;
+  private readonly defaultRedirectUri?: string;
 
   constructor(config: MetaProviderConfig) {
     this.graph = new MetaGraphClient(config);
+    this.appId = config.appId;
     this.appSecret = config.appSecret;
+    this.defaultRedirectUri = config.defaultRedirectUri;
   }
+
+  // --- onboarding / oauth (spec §7) ----------------------------------------
+  oauth = {
+    /**
+     * Troca o `code` do Embedded Signup por um access token (server-side).
+     * O App Secret nunca sai do backend (spec §8, §46).
+     *
+     * Endpoint: GET /{version}/oauth/access_token
+     *   ?client_id&client_secret&code&redirect_uri
+     * Confirmar parâmetros na doc oficial de Facebook Login antes de produção.
+     */
+    exchangeCode: async (
+      code: string,
+      redirectUri?: string,
+      requestId?: string,
+    ): Promise<TokenExchangeResult> => {
+      const res = await this.graph.get<{
+        access_token?: string;
+        token_type?: string;
+        expires_in?: number;
+      }>('oauth/access_token', {
+        requestId,
+        query: {
+          client_id: this.appId,
+          client_secret: this.appSecret,
+          code,
+          redirect_uri: redirectUri ?? this.defaultRedirectUri,
+        },
+      });
+      if (!res.access_token) {
+        throw new Error('Resposta de troca de token sem access_token.');
+      }
+      return {
+        accessToken: res.access_token,
+        tokenType: res.token_type,
+        expiresInSeconds: res.expires_in,
+      };
+    },
+  };
 
   /** Retorna o adapter (Legacy/New) para o modelo da conta. */
   adapterFor(model: AccountModel): WhatsAppAccountAdapter {

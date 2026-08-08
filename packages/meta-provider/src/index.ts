@@ -1,4 +1,8 @@
-export { MetaProvider, type MetaProviderConfig } from './MetaProvider.js';
+export {
+  MetaProvider,
+  type MetaProviderConfig,
+  type TokenExchangeResult,
+} from './MetaProvider.js';
 export {
   MetaGraphClient,
   type MetaGraphClientConfig,
@@ -15,12 +19,20 @@ export {
   verifyWebhookChallenge,
   verifyWebhookSignature,
 } from './webhooks/verify.js';
+export {
+  MetaMockServer,
+  type MetaMockOptions,
+  type MockWaba,
+  type MockPhoneNumber,
+  type MockErrorSpec,
+} from './testing/MetaMockServer.js';
 export { resolveAdapter } from './adapters/resolveAdapter.js';
 export { LegacyWabaAdapter } from './adapters/LegacyWabaAdapter.js';
 export { NewAccountModelAdapter } from './adapters/NewAccountModelAdapter.js';
 export type {
   WhatsAppAccountAdapter,
   AdapterContext,
+  AccountInfo,
   PhoneNumberInfo,
   TemplateInfo,
   CreateTemplateInput,
