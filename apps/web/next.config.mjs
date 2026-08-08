@@ -3,10 +3,8 @@ const nextConfig = {
   reactStrictMode: true,
   // O lint roda como task separada do turbo (não durante o build).
   eslint: { ignoreDuringBuilds: true },
-  // Segredos/token vivem no backend; o web fala com a API server-side.
-  env: {
-    API_URL: process.env.API_URL ?? 'http://localhost:3001',
-  },
+  // API_URL é lido em RUNTIME pelo servidor Next (server components/route
+  // handlers) — não embutimos no bundle para funcionar em Docker/produção.
 };
 
 export default nextConfig;

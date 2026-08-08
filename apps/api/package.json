@@ -10,7 +10,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "seed:demo": "tsx scripts/seed-demo.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^9.3.1",

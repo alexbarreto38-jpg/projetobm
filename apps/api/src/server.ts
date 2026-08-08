@@ -63,10 +63,17 @@ async function main() {
     logger.warn('REDIS_URL ausente — jobs não serão enfileirados.');
   }
 
+  // COOKIE_SECURE permite desligar o flag Secure quando servindo por HTTP
+  // (ex.: Docker local). Sem ele, o padrão é secure em produção.
+  const secureCookies =
+    process.env.COOKIE_SECURE !== undefined
+      ? process.env.COOKIE_SECURE === 'true'
+      : process.env.NODE_ENV === 'production';
+
   const app = await buildApp({
     prisma,
     authSecret,
-    secureCookies: process.env.NODE_ENV === 'production',
+    secureCookies,
     meta,
     webhookEnqueuer,
     templateDeploymentEnqueuer,

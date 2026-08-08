@@ -27,10 +27,14 @@ async function authenticate(
   const session = setCookie.find((c) => c.startsWith(`${SESSION_COOKIE}=`));
   const value = session?.split(';')[0]?.split('=')[1];
   if (value) {
+    const secure =
+      process.env.COOKIE_SECURE !== undefined
+        ? process.env.COOKIE_SECURE === 'true'
+        : process.env.NODE_ENV === 'production';
     cookies().set(SESSION_COOKIE, value, {
       httpOnly: true,
       sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
+      secure,
       path: '/',
       maxAge: 60 * 60 * 24 * 7,
     });

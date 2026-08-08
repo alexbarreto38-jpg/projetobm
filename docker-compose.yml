@@ -1,0 +1,104 @@
+# Stack completa de desenvolvimento do Wise API Manager.
+#
+#   docker compose up --build
+#
+# Sobe Postgres, Redis, o simulador da Meta (mock-meta) e os serviços api,
+# worker e web. Sem app real da Meta — para desenvolvimento/demonstração.
+#
+# Depois de subir, rode o seed demo (uma vez):
+#   docker compose exec api pnpm --filter @wise/api seed:demo
+# e acesse http://localhost:3000  (login: demo@demo.com / demo12345678)
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: wise
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mock-meta:
+    build: .
+    command: pnpm --filter @wise/mock-meta start
+    environment:
+      MOCK_META_PORT: '4000'
+    ports:
+      - '4000:4000'
+
+  api:
+    build: .
+    # Aplica as migrations e sobe a API.
+    command: sh -c "pnpm --filter @wise/database db:deploy && pnpm --filter @wise/api start"
+    environment:
+      NODE_ENV: development
+      API_PORT: '3001'
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/wise?schema=public
+      REDIS_URL: redis://redis:6379
+      AUTH_SECRET: ${AUTH_SECRET:-dev-secret-change-me-0123456789abcd}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-jr8UxpURCNb57IFyMVidbdVG6vxCaQOAR96wodTveMg=}
+      META_APP_ID: ${META_APP_ID:-mock-app-id}
+      META_APP_SECRET: ${META_APP_SECRET:-mock-app-secret}
+      META_GRAPH_BASE_URL: http://mock-meta:4000
+      META_GRAPH_VERSION: v23.0
+      META_WEBHOOK_VERIFY_TOKEN: ${META_WEBHOOK_VERIFY_TOKEN:-dev-verify}
+      COOKIE_SECURE: 'false'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mock-meta:
+        condition: service_started
+    ports:
+      - '3001:3001'
+
+  worker:
+    build: .
+    command: pnpm --filter @wise/worker start
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/wise?schema=public
+      REDIS_URL: redis://redis:6379
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-jr8UxpURCNb57IFyMVidbdVG6vxCaQOAR96wodTveMg=}
+      META_APP_ID: ${META_APP_ID:-mock-app-id}
+      META_APP_SECRET: ${META_APP_SECRET:-mock-app-secret}
+      META_GRAPH_BASE_URL: http://mock-meta:4000
+      META_GRAPH_VERSION: v23.0
+    depends_on:
+      api:
+        condition: service_started
+
+  web:
+    build: .
+    command: pnpm --filter @wise/web start
+    environment:
+      NODE_ENV: production
+      API_URL: http://api:3001
+      COOKIE_SECURE: 'false'
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - '3000:3000'
+
+volumes:
+  pgdata:

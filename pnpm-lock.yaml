@@ -79,6 +79,25 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.43)
 
+  apps/mock-meta:
+    dependencies:
+      '@wise/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@wise/meta-provider':
+        specifier: workspace:*
+        version: link:../../packages/meta-provider
+    devDependencies:
+      tsx:
+        specifier: ^4.16.0
+        version: 4.23.11
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@20.19.43)
+
   apps/web:
     dependencies:
       class-variance-authority:

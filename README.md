@@ -94,6 +94,22 @@ Detalhes em [`docs/architecture/overview.md`](docs/architecture/overview.md).
 
 ## Começando
 
+### Mais rápido — Docker (roda tudo contra o simulador da Meta)
+
+```bash
+docker compose up --build
+docker compose exec api pnpm --filter @wise/api seed:demo   # dados de demonstração
+```
+
+Acesse **http://localhost:3000** e entre com **demo@demo.com / demo12345678** —
+já vem com conta Meta conectada (mock), números, template aprovado e contatos.
+Detalhes e a opção manual em [`docs/local-dev.md`](docs/local-dev.md). O
+simulador (`apps/mock-meta`) permite rodar o fluxo inteiro **sem o app real da
+Meta**; para ligar na Meta de verdade, veja
+[`docs/meta/setup-app.md`](docs/meta/setup-app.md).
+
+### Manual
+
 Pré-requisitos: Node ≥ 20, pnpm 9, PostgreSQL e Redis (locais ou gerenciados).
 
 ```bash
