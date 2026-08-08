@@ -94,7 +94,15 @@ Ver `docs/meta/account-model-2026.md`. Resumo:
 - **Circuit breaker** (spec §28) por conexão/número — `CircuitBreaker` em
   `@wise/queue` (CLOSED→OPEN→HALF_OPEN) com estado compartilhado em Redis;
   integrado ao envio (`message-send`).
-- **Rate control** configurável (spec §41) — nunca para explorar limites.
+- **Rate control** configurável (spec §41) — `RateLimiter` (token-bucket) em
+  `@wise/queue` com store em Redis, por número; válvula de segurança, nunca para
+  maximizar limites.
+- **Dead-letter queue** (spec §56): jobs que esgotam as tentativas são gravados
+  em `dead_letter_jobs` (motivo/conta/data); retry manual re-executa o job (o
+  processador re-valida) — sem "reenviar tudo" cego.
+- **Sincronização periódica** (spec §50): agendador enfileira `account-sync` para
+  todas as contas conectadas; o worker re-busca dados/números da Meta (source of
+  truth) e faz upsert.
 
 ## Observabilidade (Fase 9)
 
@@ -112,7 +120,7 @@ Ver `docs/meta/account-model-2026.md`. Resumo:
 |------|---------|--------|
 | 1 | Monorepo, Prisma, config, RBAC, Auth, Organizations | 🟢 backend + painel web |
 | 2 | MetaGraphClient, CredentialVault, MetaConnection, Embedded Signup | 🟢 conexão + descoberta prontas (testado via mock) |
-| 3 | Sincronização: Business, contas, números | 🟡 sync por conta pronto (job periódico depois) |
+| 3 | Sincronização: Business, contas, números | 🟢 sync por conta + agendador periódico (§50) |
 | 4 | Webhooks: endpoint, storage, fila de processamento | 🟢 endpoint + fila + worker prontos |
 | 5 | Templates, deployments, Bulk Template Manager | 🟢 CRUD + replicação + submissão prontos |
 | 6 | Contatos, import CSV, opt-in/opt-out | 🟢 CRUD + consentimento + opt-out + import por streaming |

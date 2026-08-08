@@ -13,6 +13,14 @@ export {
   type BreakerRecord,
   type CircuitBreakerOptions,
 } from './circuitBreaker.js';
+export {
+  RateLimiter,
+  InMemoryRateStore,
+  RedisRateStore,
+  type RateStore,
+  type TakeResult,
+  type RateLimiterOptions,
+} from './rateLimiter.js';
 
 /** Cria uma fila tipada. */
 export function createQueue<N extends QueueName>(

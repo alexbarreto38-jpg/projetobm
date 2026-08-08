@@ -40,7 +40,10 @@ Business Platform**, usando **exclusivamente** APIs e fluxos **oficiais da Meta*
   números autorizados e não pausados (registrando qual ativo envia cada mensagem,
   §53) com chave de duplicidade (§54), e workers de geração e envio de mensagens
   (idempotentes; pausa o número em restrição da plataforma, §25)
-- ✅ **108 testes** (unitários + integração contra Postgres real + round-trip real
+- ✅ **Robustez operacional:** `RateLimiter` (token-bucket/Redis) por número (§41),
+  **dead-letter queue** com retry manual que re-valida (§56), e **sincronização
+  periódica** de contas (`account-sync`, §50) — Meta como source of truth
+- ✅ **118 testes** (unitários + integração contra Postgres real + round-trip real
   de BullMQ/Redis): vault, webhook, erros Meta, senha, sessão, autorização,
   isolamento multi-tenant, RBAC, conexão Meta, webhooks, templates, telefone,
   contatos/importação, campanhas/preflight, roteamento, envio, circuit breaker,

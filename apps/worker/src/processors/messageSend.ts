@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@wise/database';
 import { logger } from '@wise/logger';
 import { MetaApiError } from '@wise/meta-provider';
-import type { CircuitBreaker } from '@wise/queue';
+import type { CircuitBreaker, RateLimiter } from '@wise/queue';
 import type { AccountModel } from '@wise/types';
 import type { WorkerMeta } from '../meta.js';
 
@@ -22,6 +22,7 @@ export async function processMessageSend(
   meta: WorkerMeta,
   messageId: string,
   breaker?: CircuitBreaker,
+  rateLimiter?: RateLimiter,
 ): Promise<MessageSendResult> {
   const message = await prisma.message.findUnique({
     where: { id: messageId },
@@ -92,6 +93,18 @@ export async function processMessageSend(
         category: 'TRANSIENT',
         retryable: true,
         message: 'Circuit breaker aberto para o número; envio adiado.',
+      });
+    }
+  }
+
+  // Rate control por número (spec §41): válvula de segurança, não maximização.
+  if (rateLimiter) {
+    const { allowed } = await rateLimiter.take(phone.id);
+    if (!allowed) {
+      throw new MetaApiError({
+        category: 'RATE_LIMIT',
+        retryable: true,
+        message: 'Limite local de envio atingido para o número; envio adiado.',
       });
     }
   }

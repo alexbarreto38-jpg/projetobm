@@ -1,8 +1,16 @@
 import { prisma } from '@wise/database';
 import { logger } from '@wise/logger';
 import { createRedisConnection, createWorker, QUEUE_NAMES } from '@wise/queue';
-import { CircuitBreaker, createQueue, RedisBreakerStore } from '@wise/queue';
+import {
+  CircuitBreaker,
+  createQueue,
+  RateLimiter,
+  RedisBreakerStore,
+  RedisRateStore,
+} from '@wise/queue';
+import { isFinalAttempt, recordDeadLetter } from './deadLetter.js';
 import { buildWorkerMeta } from './meta.js';
+import { processAccountSync } from './processors/accountSync.js';
 import { processCampaign } from './processors/campaignProcessing.js';
 import { processContactImport } from './processors/contactImport.js';
 import { processMessageSend } from './processors/messageSend.js';
@@ -20,6 +28,22 @@ async function main() {
 
   const connection = createRedisConnection(redisUrl);
 
+  // Handler de falha compartilhado: registra na dead-letter só quando o job
+  // esgotou as tentativas (falha definitiva — spec §56).
+  const onFailed =
+    (queue: (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES]) =>
+    async (job: { id?: string; data?: unknown; attemptsMade?: number; opts?: { attempts?: number } } | undefined, err: Error) => {
+      logger.error({ queue, jobId: job?.id, err: err.message }, 'Job falhou');
+      if (job && isFinalAttempt(job.attemptsMade ?? 0, job.opts?.attempts)) {
+        await recordDeadLetter(prisma, {
+          queue,
+          jobId: job.id,
+          reason: err.message,
+          data: job.data,
+        }).catch((e) => logger.error({ e }, 'Falha ao registrar dead-letter'));
+      }
+    };
+
   const webhookWorker = createWorker(
     QUEUE_NAMES.webhookProcessing,
     async (job) => {
@@ -31,9 +55,7 @@ async function main() {
     connection,
   );
 
-  webhookWorker.on('failed', (job, err) => {
-    logger.error({ jobId: job?.id, err: err.message }, 'Job de webhook falhou');
-  });
+  webhookWorker.on('failed', onFailed(QUEUE_NAMES.webhookProcessing));
 
   // Worker de submissão de templates (spec §17). Requer contexto Meta.
   const meta = buildWorkerMeta();
@@ -47,9 +69,7 @@ async function main() {
     },
     connection,
   );
-  deploymentWorker.on('failed', (job, err) => {
-    logger.error({ jobId: job?.id, err: err.message }, 'Job de deployment falhou');
-  });
+  deploymentWorker.on('failed', onFailed(QUEUE_NAMES.metaTemplateDeployment));
 
   // Worker de importação de contatos (spec §40).
   const importWorker = createWorker(
@@ -62,9 +82,7 @@ async function main() {
     },
     connection,
   );
-  importWorker.on('failed', (job, err) => {
-    logger.error({ jobId: job?.id, err: err.message }, 'Job de importação falhou');
-  });
+  importWorker.on('failed', onFailed(QUEUE_NAMES.contactImport));
 
   // Fila de envio: o processamento de campanha enfileira 1 job por mensagem.
   const messageSendQueue = createQueue(QUEUE_NAMES.messageSend, connection);
@@ -85,30 +103,66 @@ async function main() {
     },
     connection,
   );
-  campaignWorker.on('failed', (job, err) => {
-    logger.error({ jobId: job?.id, err: err.message }, 'Job de campanha falhou');
-  });
+  campaignWorker.on('failed', onFailed(QUEUE_NAMES.campaignProcessing));
 
-  // Circuit breaker por número, com estado compartilhado em Redis (spec §28).
+  // Circuit breaker + rate limiter por número, compartilhados via Redis (§28, §41).
   const breaker = new CircuitBreaker(new RedisBreakerStore(connection));
+  const rateLimiter = new RateLimiter(new RedisRateStore(connection), {
+    capacity: Number(process.env.SEND_RATE_CAPACITY ?? 60),
+    refillPerSec: Number(process.env.SEND_RATE_PER_SEC ?? 10),
+  });
 
   // Worker de envio de mensagens (chama a Meta via adapter).
   const messageWorker = createWorker(
     QUEUE_NAMES.messageSend,
     async (job) => {
       const { messageId } = job.data;
-      const result = await processMessageSend(prisma, meta, messageId, breaker);
+      const result = await processMessageSend(prisma, meta, messageId, breaker, rateLimiter);
       logger.info({ messageId, ...result }, 'Mensagem processada');
       return result;
     },
     connection,
   );
-  messageWorker.on('failed', (job, err) => {
-    logger.error({ jobId: job?.id, err: err.message }, 'Job de envio falhou');
-  });
+  messageWorker.on('failed', onFailed(QUEUE_NAMES.messageSend));
+
+  // Worker de sincronização de contas (spec §50).
+  const syncWorker = createWorker(
+    QUEUE_NAMES.accountSync,
+    async (job) => {
+      const result = await processAccountSync(prisma, meta, job.data);
+      logger.info({ ...job.data, ...result }, 'Sync de conta processado');
+      return result;
+    },
+    connection,
+  );
+  syncWorker.on('failed', onFailed(QUEUE_NAMES.accountSync));
+
+  // Agendador periódico (spec §50): enfileira sync de todas as contas conectadas.
+  const accountSyncQueue = createQueue(QUEUE_NAMES.accountSync, connection);
+  const syncIntervalMs = Number(process.env.SYNC_INTERVAL_MS ?? 30 * 60 * 1000);
+  const syncTimer = setInterval(() => {
+    void (async () => {
+      try {
+        const accounts = await prisma.whatsAppAccount.findMany({
+          where: { metaConnection: { status: 'CONNECTED' } },
+          select: { id: true, organizationId: true },
+        });
+        for (const a of accounts) {
+          await accountSyncQueue.add(
+            'sync',
+            { organizationId: a.organizationId, accountId: a.id },
+            { jobId: `sync_${a.id}_${Math.floor(Date.now() / syncIntervalMs)}` },
+          );
+        }
+      } catch (err) {
+        logger.error({ err }, 'Falha ao agendar sync de contas');
+      }
+    })();
+  }, syncIntervalMs);
+  syncTimer.unref();
 
   logger.info(
-    'Workers iniciados: webhook-processing, meta-template-deployment, contact-import, campaign-processing, message-send',
+    'Workers iniciados: webhook-processing, meta-template-deployment, contact-import, campaign-processing, message-send, account-sync',
   );
 
   const shutdown = async () => {
@@ -118,7 +172,10 @@ async function main() {
     await importWorker.close();
     await campaignWorker.close();
     await messageWorker.close();
+    await syncWorker.close();
+    clearInterval(syncTimer);
     await messageSendQueue.close();
+    await accountSyncQueue.close();
     await connection.quit();
     await prisma.$disconnect();
     process.exit(0);

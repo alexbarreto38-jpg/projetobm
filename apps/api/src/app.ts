@@ -18,6 +18,7 @@ import { registerAuthRoutes } from './modules/auth/routes.js';
 import { registerMetaRoutes } from './modules/meta/routes.js';
 import { registerCampaignRoutes } from './modules/campaigns/routes.js';
 import { registerContactRoutes } from './modules/contacts/routes.js';
+import { registerDeadLetterRoutes } from './modules/deadletter/routes.js';
 import { registerOrganizationRoutes } from './modules/organizations/routes.js';
 import { registerReportRoutes } from './modules/reports/routes.js';
 import { registerTemplateRoutes } from './modules/templates/routes.js';
@@ -25,6 +26,7 @@ import { registerWebhookRoutes } from './modules/webhooks/routes.js';
 import type {
   CampaignProcessingEnqueuer,
   ContactImportEnqueuer,
+  MessageSendEnqueuer,
   TemplateDeploymentEnqueuer,
   WebhookEnqueuer,
 } from './queue/enqueuer.js';
@@ -49,6 +51,8 @@ export interface AppConfig {
   contactImportEnqueuer?: ContactImportEnqueuer;
   /** Enfileirador de processamento de campanhas. */
   campaignProcessingEnqueuer?: CampaignProcessingEnqueuer;
+  /** Enfileirador de envio de mensagens (usado no requeue da dead-letter). */
+  messageSendEnqueuer?: MessageSendEnqueuer;
 }
 
 declare module 'fastify' {
@@ -147,6 +151,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       await registerContactRoutes(instance, config);
       await registerCampaignRoutes(instance, config);
       await registerReportRoutes(instance, config);
+      await registerDeadLetterRoutes(instance, config);
       if (config.meta) {
         await registerMetaRoutes(instance, config, config.meta);
       }

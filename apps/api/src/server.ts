@@ -5,12 +5,14 @@ import { buildMetaContext, type MetaContext } from './meta/context.js';
 import {
   BullMqCampaignProcessingEnqueuer,
   BullMqContactImportEnqueuer,
+  BullMqMessageSendEnqueuer,
   BullMqTemplateDeploymentEnqueuer,
   BullMqWebhookEnqueuer,
 } from './queue/bullmqEnqueuer.js';
 import type {
   CampaignProcessingEnqueuer,
   ContactImportEnqueuer,
+  MessageSendEnqueuer,
   TemplateDeploymentEnqueuer,
   WebhookEnqueuer,
 } from './queue/enqueuer.js';
@@ -49,11 +51,13 @@ async function main() {
   let templateDeploymentEnqueuer: TemplateDeploymentEnqueuer | undefined;
   let contactImportEnqueuer: ContactImportEnqueuer | undefined;
   let campaignProcessingEnqueuer: CampaignProcessingEnqueuer | undefined;
+  let messageSendEnqueuer: MessageSendEnqueuer | undefined;
   if (process.env.REDIS_URL) {
     webhookEnqueuer = new BullMqWebhookEnqueuer(process.env.REDIS_URL);
     templateDeploymentEnqueuer = new BullMqTemplateDeploymentEnqueuer(process.env.REDIS_URL);
     contactImportEnqueuer = new BullMqContactImportEnqueuer(process.env.REDIS_URL);
     campaignProcessingEnqueuer = new BullMqCampaignProcessingEnqueuer(process.env.REDIS_URL);
+    messageSendEnqueuer = new BullMqMessageSendEnqueuer(process.env.REDIS_URL);
   } else {
     logger.warn('REDIS_URL ausente — jobs não serão enfileirados.');
   }
@@ -67,6 +71,7 @@ async function main() {
     templateDeploymentEnqueuer,
     contactImportEnqueuer,
     campaignProcessingEnqueuer,
+    messageSendEnqueuer,
   });
 
   const port = Number(process.env.API_PORT ?? 3001);

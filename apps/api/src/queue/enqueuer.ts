@@ -26,3 +26,6 @@ export interface CampaignProcessingEnqueuer {
 export interface MessageSendEnqueuer {
   enqueue(messageId: string): Promise<void>;
 }
+
+/** Reenfileira um job a partir do nome da fila + id da entidade (dead-letter §56). */
+export type Requeuers = Partial<Record<string, (entityId: string) => Promise<void>>>;
