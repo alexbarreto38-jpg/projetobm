@@ -1,5 +1,5 @@
 import { createQueue, createRedisConnection, QUEUE_NAMES, type Queue } from '@wise/queue';
-import type { WebhookEnqueuer } from './enqueuer.js';
+import type { TemplateDeploymentEnqueuer, WebhookEnqueuer } from './enqueuer.js';
 
 /**
  * Enqueuer de webhooks apoiado no BullMQ/Redis (produção). Em testes usamos um
@@ -21,5 +21,18 @@ export class BullMqWebhookEnqueuer implements WebhookEnqueuer {
       // jobId não pode conter ':' (restrição do BullMQ).
       { jobId: `webhook_${webhookEventId}` },
     );
+  }
+}
+
+export class BullMqTemplateDeploymentEnqueuer implements TemplateDeploymentEnqueuer {
+  private readonly queue: Queue<{ deploymentId: string }>;
+
+  constructor(redisUrl: string) {
+    const connection = createRedisConnection(redisUrl);
+    this.queue = createQueue(QUEUE_NAMES.metaTemplateDeployment, connection);
+  }
+
+  async enqueue(deploymentId: string): Promise<void> {
+    await this.queue.add('submit', { deploymentId }, { jobId: `deployment_${deploymentId}` });
   }
 }

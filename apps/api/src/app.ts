@@ -17,8 +17,9 @@ import type { MetaContext } from './meta/context.js';
 import { registerAuthRoutes } from './modules/auth/routes.js';
 import { registerMetaRoutes } from './modules/meta/routes.js';
 import { registerOrganizationRoutes } from './modules/organizations/routes.js';
+import { registerTemplateRoutes } from './modules/templates/routes.js';
 import { registerWebhookRoutes } from './modules/webhooks/routes.js';
-import type { WebhookEnqueuer } from './queue/enqueuer.js';
+import type { TemplateDeploymentEnqueuer, WebhookEnqueuer } from './queue/enqueuer.js';
 
 export interface AppConfig {
   prisma: PrismaClient;
@@ -34,6 +35,8 @@ export interface AppConfig {
   meta?: MetaContext;
   /** Enfileirador de webhooks (BullMQ em prod, fake em testes). */
   webhookEnqueuer?: WebhookEnqueuer;
+  /** Enfileirador de submissões de template. */
+  templateDeploymentEnqueuer?: TemplateDeploymentEnqueuer;
 }
 
 declare module 'fastify' {
@@ -128,6 +131,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     async (instance) => {
       await registerAuthRoutes(instance, config);
       await registerOrganizationRoutes(instance, config);
+      await registerTemplateRoutes(instance, config);
       if (config.meta) {
         await registerMetaRoutes(instance, config, config.meta);
       }

@@ -6,3 +6,8 @@
 export interface WebhookEnqueuer {
   enqueue(webhookEventId: string): Promise<void>;
 }
+
+/** Enfileira submissões de template (fila meta-template-deployment — spec §26). */
+export interface TemplateDeploymentEnqueuer {
+  enqueue(deploymentId: string): Promise<void>;
+}

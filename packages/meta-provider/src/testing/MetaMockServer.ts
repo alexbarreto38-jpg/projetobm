@@ -74,6 +74,18 @@ export class MetaMockServer {
       return this.json(200, { success: true });
     }
 
+    // POST /{waba}/message_templates — criação de template.
+    if (method === 'POST' && path.endsWith('/message_templates')) {
+      const body = parseBody(init?.body);
+      const name = (body?.name as string) ?? 'template';
+      return this.json(200, { id: `TPL_${name}`, status: 'PENDING', category: body?.category });
+    }
+
+    // GET /{waba}/message_templates — listagem.
+    if (method === 'GET' && path.endsWith('/message_templates')) {
+      return this.json(200, { data: [] });
+    }
+
     // GET /{waba}/phone_numbers
     const phoneMatch = path.match(/\/([^/]+)\/phone_numbers$/);
     if (method === 'GET' && phoneMatch) {
@@ -121,5 +133,14 @@ export class MetaMockServer {
       }),
       { status: spec.httpStatus, headers },
     );
+  }
+}
+
+function parseBody(body: RequestInit['body']): Record<string, unknown> | undefined {
+  if (typeof body !== 'string') return undefined;
+  try {
+    return JSON.parse(body) as Record<string, unknown>;
+  } catch {
+    return undefined;
   }
 }

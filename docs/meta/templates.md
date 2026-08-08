@@ -37,6 +37,29 @@ Cada deployment tem `idempotencyKey` (spec §19) e preserva
 replicação roda via fila `meta-template-deployment` + workers — nunca em loop
 bruto dentro do request HTTP (spec §18).
 
+## Implementação atual (Fase 5)
+
+- **Template mestre** (`apps/api` `TemplateService`): CRUD de rascunho —
+  `POST/GET/PATCH /api/organizations/:id/templates`, `.../duplicate`. Editável só
+  em `DRAFT`; unique por (org, nome, idioma).
+- **Replicação** (`TemplateDeploymentService`,
+  `POST /api/organizations/:id/templates/:templateId/replicate`): valida que as
+  contas pertencem à organização (§53), cria/atualiza **1 `template_deployment`
+  por conta** (idempotente por `templateId+targetAccountId`) e **enfileira 1 job
+  por conta** na fila `meta-template-deployment` — nunca em loop no request (§18).
+  Retorna `202` com os deployments `QUEUED`.
+- **Worker** (`apps/worker` `processTemplateDeployment`): decifra a credencial,
+  chama `adapter.createTemplate`, grava `externalTemplateId` + status (`PENDING`).
+  Em erro da Meta → `ERROR` preservando `code/subcode/message/fbtrace_id` (§48,§49);
+  transitórios são retentados pela fila (§27). Idempotente (não reenvia se já há
+  `externalTemplateId`).
+- **Aprovação/rejeição** chega depois via webhook `message_template_status_update`
+  (Fase 4), que atualiza o deployment por `externalTemplateId`.
+- **Bulk view** (`GET .../deployments`): status por conta (§52).
+
+> Testado contra Postgres real + MetaMockServer, incluindo o ciclo completo
+> submissão (PENDING) → webhook APPROVED.
+
 ## Edges (legado — confirmar na doc)
 
 - `GET  /{waba-id}/message_templates`

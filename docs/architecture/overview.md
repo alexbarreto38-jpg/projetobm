@@ -27,7 +27,7 @@ Os seis primeiros nunca são sacrificados por velocidade.
 apps/
   api/       Fastify + TS — auth, organizations, RBAC, conexão Meta, webhooks    ✅
   web/       Next.js + React + TS + Tailwind + shadcn/ui (painel)                 ⚪ próximo
-  worker/    BullMQ workers — webhook-processing (demais filas nas fases seguintes)  ✅
+  worker/    BullMQ workers — webhook-processing, meta-template-deployment           ✅
 packages/
   database/       Prisma schema + client + migrations (@wise/database)      ✅
   meta-provider/  Camada Meta: MetaGraphClient, adapters, CredentialVault (@wise/meta-provider)  ✅
@@ -101,7 +101,7 @@ Ver `docs/meta/account-model-2026.md`. Resumo:
 | 2 | MetaGraphClient, CredentialVault, MetaConnection, Embedded Signup | 🟢 conexão + descoberta prontas (testado via mock) |
 | 3 | Sincronização: Business, contas, números | 🟡 sync por conta pronto (job periódico depois) |
 | 4 | Webhooks: endpoint, storage, fila de processamento | 🟢 endpoint + fila + worker prontos |
-| 5 | Templates, deployments, Bulk Template Manager | ⚪ |
+| 5 | Templates, deployments, Bulk Template Manager | 🟢 CRUD + replicação + submissão prontos |
 | 6 | Contatos, import CSV, opt-in/opt-out | ⚪ |
 | 7 | Campanhas, Preflight, CampaignRouter | ⚪ |
 | 8 | Fila de mensagens, workers, retry, idempotência, breaker | ⚪ |

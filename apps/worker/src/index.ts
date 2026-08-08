@@ -1,6 +1,8 @@
 import { prisma } from '@wise/database';
 import { logger } from '@wise/logger';
 import { createRedisConnection, createWorker, QUEUE_NAMES } from '@wise/queue';
+import { buildWorkerMeta } from './meta.js';
+import { processTemplateDeployment } from './processors/templateDeployment.js';
 import { processWebhookEvent } from './processors/webhook.js';
 
 /**
@@ -29,11 +31,28 @@ async function main() {
     logger.error({ jobId: job?.id, err: err.message }, 'Job de webhook falhou');
   });
 
-  logger.info('Workers iniciados: webhook-processing');
+  // Worker de submissão de templates (spec §17). Requer contexto Meta.
+  const meta = buildWorkerMeta();
+  const deploymentWorker = createWorker(
+    QUEUE_NAMES.metaTemplateDeployment,
+    async (job) => {
+      const { deploymentId } = job.data;
+      const result = await processTemplateDeployment(prisma, meta, deploymentId);
+      logger.info({ deploymentId, ...result }, 'Deployment de template processado');
+      return result;
+    },
+    connection,
+  );
+  deploymentWorker.on('failed', (job, err) => {
+    logger.error({ jobId: job?.id, err: err.message }, 'Job de deployment falhou');
+  });
+
+  logger.info('Workers iniciados: webhook-processing, meta-template-deployment');
 
   const shutdown = async () => {
     logger.info('Encerrando workers...');
     await webhookWorker.close();
+    await deploymentWorker.close();
     await connection.quit();
     await prisma.$disconnect();
     process.exit(0);

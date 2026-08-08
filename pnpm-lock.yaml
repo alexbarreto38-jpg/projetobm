@@ -87,6 +87,9 @@ importers:
       '@wise/logger':
         specifier: workspace:*
         version: link:../../packages/logger
+      '@wise/meta-provider':
+        specifier: workspace:*
+        version: link:../../packages/meta-provider
       '@wise/queue':
         specifier: workspace:*
         version: link:../../packages/queue
