@@ -49,9 +49,12 @@ Business Platform**, usando **exclusivamente** APIs e fluxos **oficiais da Meta*
 
 - ✅ **Painel `apps/web`** (Next.js App Router + Tailwind, tema preto/branco/amarelo):
   login/registro (BFF — token só no servidor, cookie HttpOnly same-origin),
-  middleware de sessão, layout com sidebar, dashboard com cards, e telas de
-  Empresas, Contas Meta, Templates, Campanhas, Contatos, Relatórios, Alertas e
-  Configurações consumindo a API (loading/empty/error states)
+  middleware de sessão, layout com sidebar, dashboard com cards. **Operável via
+  Server Actions**: conectar conta Meta (token/System User; botão Embedded Signup
+  para produção), criar template + **Bulk Manager** (replicar em N contas com
+  status por conta), **wizard de campanha** (criar → preflight com checklist
+  🟢/🟡/🔴 → iniciar/pausar/cancelar), criar/importar contatos (CSV) e opt-out,
+  além de Relatórios, Alertas (reconhecer/resolver) e Configurações
 
 - ✅ **Observabilidade + resiliência (Fase 9 + §28):** `CircuitBreaker` por número
   (CLOSED→OPEN→HALF_OPEN, estado em Redis) integrado ao envio; `ReportsService`

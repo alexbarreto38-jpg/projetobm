@@ -1,4 +1,8 @@
+import { connectByTokenAction, syncAccountAction } from '../actions';
+import { ConnectForm } from '../connect-form';
 import { Badge, statusTone } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { SubmitButton } from '@/components/form';
 import { EmptyState, ErrorState, PageHeader, Table, Td, Th } from '@/components/page';
 import { api } from '@/lib/api';
 import { getOrgContext } from '@/lib/session';
@@ -23,17 +27,26 @@ interface Account {
 export default async function MetaAccountsPage() {
   const ctx = await getOrgContext();
   if (!ctx?.orgId) return <ErrorState message="Nenhuma organização selecionada." />;
+  const orgId = ctx.orgId;
 
-  const res = await api<{ accounts: Account[] }>(`/api/organizations/${ctx.orgId}/meta/accounts`);
+  const res = await api<{ accounts: Account[] }>(`/api/organizations/${orgId}/meta/accounts`);
   if (!res.ok) return <ErrorState message={`Não foi possível carregar as contas: ${res.error}`} />;
   const accounts = res.data?.accounts ?? [];
 
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
         title="Contas Meta"
-        description="Contas WhatsApp conectadas via Embedded Signup, seus números e status."
+        description="Contas WhatsApp conectadas oficialmente, seus números e status."
+        action={
+          <Button title="Abre o Embedded Signup oficial (requer app Meta configurado)" disabled>
+            Conectar WhatsApp
+          </Button>
+        }
       />
+
+      <ConnectForm action={connectByTokenAction.bind(null, orgId)} />
+
       {accounts.length === 0 ? (
         <EmptyState
           title="Nenhuma conta conectada"
@@ -48,6 +61,7 @@ export default async function MetaAccountsPage() {
               <Th>Números</Th>
               <Th>Conexão</Th>
               <Th>Última sync</Th>
+              <Th>Ações</Th>
             </tr>
           </thead>
           <tbody>
@@ -75,6 +89,13 @@ export default async function MetaAccountsPage() {
                   {a.metaConnection?.lastSyncAt
                     ? new Date(a.metaConnection.lastSyncAt).toLocaleString('pt-BR')
                     : '—'}
+                </Td>
+                <Td>
+                  <form action={syncAccountAction.bind(null, orgId, a.id)}>
+                    <SubmitButton variant="ghost" size="sm" pendingLabel="…">
+                      Sincronizar
+                    </SubmitButton>
+                  </form>
                 </Td>
               </tr>
             ))}

@@ -1,4 +1,6 @@
+import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { EmptyState, ErrorState, PageHeader, Table, Td, Th } from '@/components/page';
 import { api } from '@/lib/api';
 import { getOrgContext } from '@/lib/session';
@@ -27,6 +29,11 @@ export default async function TemplatesPage() {
       <PageHeader
         title="Templates"
         description="Templates mestres e o status das implantações por conta (Bulk Template Manager)."
+        action={
+          <Link href="/templates/new">
+            <Button>Novo template</Button>
+          </Link>
+        }
       />
       {templates.length === 0 ? (
         <EmptyState
@@ -50,7 +57,11 @@ export default async function TemplatesPage() {
               const s = t.deploymentSummary ?? {};
               return (
                 <tr key={t.id}>
-                  <Td>{t.name}</Td>
+                  <Td>
+                    <Link href={`/templates/${t.id}`} className="text-wise-yellow hover:underline">
+                      {t.name}
+                    </Link>
+                  </Td>
                   <Td>
                     <Badge>{t.category}</Badge>
                   </Td>

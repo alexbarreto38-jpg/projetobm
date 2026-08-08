@@ -1,4 +1,6 @@
+import Link from 'next/link';
 import { Badge, statusTone } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { EmptyState, ErrorState, PageHeader, Table, Td, Th } from '@/components/page';
 import { api } from '@/lib/api';
 import { getOrgContext } from '@/lib/session';
@@ -27,6 +29,11 @@ export default async function CampaignsPage() {
       <PageHeader
         title="Campanhas"
         description="Envios em massa com preflight de compliance e distribuição entre números autorizados."
+        action={
+          <Link href="/campaigns/new">
+            <Button>Nova campanha</Button>
+          </Link>
+        }
       />
       {campaigns.length === 0 ? (
         <EmptyState
@@ -47,7 +54,11 @@ export default async function CampaignsPage() {
           <tbody>
             {campaigns.map((c) => (
               <tr key={c.id}>
-                <Td>{c.name}</Td>
+                <Td>
+                  <Link href={`/campaigns/${c.id}`} className="text-wise-yellow hover:underline">
+                    {c.name}
+                  </Link>
+                </Td>
                 <Td>{c.template?.name ?? '—'}</Td>
                 <Td>
                   <Badge tone={statusTone(c.status)}>{c.status}</Badge>
