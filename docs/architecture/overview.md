@@ -26,7 +26,7 @@ Os seis primeiros nunca são sacrificados por velocidade.
 ```
 apps/
   api/       Fastify + TS — auth, organizations, RBAC, conexão Meta, webhooks    ✅
-  web/       Next.js + React + TS + Tailwind + shadcn/ui (painel)                 ⚪ próximo
+  web/       Next.js (App Router) + Tailwind — painel BFF (login, dashboard, telas)  ✅
   worker/    BullMQ workers — webhook-processing, meta-template-deployment, contact-import,
              campaign-processing, message-send                                             ✅
 packages/
@@ -98,7 +98,7 @@ Ver `docs/meta/account-model-2026.md`. Resumo:
 
 | Fase | Entrega | Status |
 |------|---------|--------|
-| 1 | Monorepo, Prisma, config, RBAC, Auth, Organizations | 🟢 backend pronto (falta UI web) |
+| 1 | Monorepo, Prisma, config, RBAC, Auth, Organizations | 🟢 backend + painel web |
 | 2 | MetaGraphClient, CredentialVault, MetaConnection, Embedded Signup | 🟢 conexão + descoberta prontas (testado via mock) |
 | 3 | Sincronização: Business, contas, números | 🟡 sync por conta pronto (job periódico depois) |
 | 4 | Webhooks: endpoint, storage, fila de processamento | 🟢 endpoint + fila + worker prontos |

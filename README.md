@@ -46,10 +46,16 @@ Business Platform**, usando **exclusivamente** APIs e fluxos **oficiais da Meta*
   contatos/importação, campanhas/preflight, roteamento e envio
 - ✅ CI (serviços Postgres + Redis, migrate, lint, typecheck, test, build)
 
+- ✅ **Painel `apps/web`** (Next.js App Router + Tailwind, tema preto/branco/amarelo):
+  login/registro (BFF — token só no servidor, cookie HttpOnly same-origin),
+  middleware de sessão, layout com sidebar, dashboard com cards, e telas de
+  Empresas, Contas Meta, Templates, Campanhas, Contatos, Relatórios, Alertas e
+  Configurações consumindo a API (loading/empty/error states)
+
 Fluxo mínimo de produção (§72) coberto de ponta a ponta contra mock: conectar →
 descobrir → template → replicar → aprovar → importar contatos → campanha →
-preflight → fila → envio → webhook. Próximo: painel `apps/web`, circuit breaker
-(§28), health check (§29) e relatórios (§32) — ver `docs/architecture/overview.md`.
+preflight → fila → envio → webhook. Próximo: circuit breaker (§28), health check
+(§29) e relatórios/dashboard de métricas (§32) — ver `docs/architecture/overview.md`.
 
 ## Stack
 
