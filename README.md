@@ -1,3 +1,93 @@
-# projetobm
+# Wise API Manager
 
-Um pequeno repositorio para praticar o fluxo de Pull Requests no GitHub.
+Plataforma **SaaS multi-tenant** para gestão de múltiplas contas do **WhatsApp
+Business Platform**, usando **exclusivamente** APIs e fluxos **oficiais da Meta**.
+
+> Segurança, conformidade com a Meta e rastreabilidade vêm antes de velocidade
+> (spec §78). Nada de API não oficial, scraping ou automação de navegador.
+
+## Status
+
+**Fase 1 — fundação** (este estágio):
+
+- ✅ Monorepo pnpm + Turborepo, TypeScript estrito
+- ✅ Schema Prisma multi-tenant completo (todas as entidades da spec §9)
+- ✅ Camada Meta base: `MetaGraphClient`, `CredentialVault`, `MetaApiError`,
+  verificação de webhook, `Legacy`/`New` account adapters (spec §3, §5, §8, §59)
+- ✅ `@wise/config` (env validado por Zod), `@wise/types` (RBAC + capabilities),
+  `@wise/logger` (logs com redação de segredos)
+- ✅ Testes unitários (vault, assinatura de webhook, mapeamento de erros)
+- ✅ CI (lint, typecheck, test, build) e documentação Meta versionada
+
+Próximas fases (Auth/Organizations UI, sync, webhooks endpoint, templates,
+contatos, campanhas, workers) em `docs/architecture/overview.md`.
+
+## Stack
+
+Next.js · React · TypeScript · Tailwind · shadcn/ui · Node.js · PostgreSQL ·
+Prisma · Redis · BullMQ · Auth.js.
+
+## Estrutura
+
+```
+apps/     web (Next.js) · api (Node) · worker (BullMQ)   ← Fases seguintes
+packages/ database · meta-provider · config · types · logger  ← neste commit
+docs/     architecture/ · meta/ (verificada contra a Meta)
+```
+
+Detalhes em [`docs/architecture/overview.md`](docs/architecture/overview.md).
+
+## Começando
+
+Pré-requisitos: Node ≥ 20, pnpm 9, PostgreSQL e Redis (locais ou gerenciados).
+
+```bash
+# 1. Dependências
+pnpm install
+
+# 2. Variáveis de ambiente
+cp .env.example .env
+#   Gere segredos:
+#   openssl rand -base64 32   # AUTH_SECRET
+#   openssl rand -base64 32   # ENCRYPTION_KEY (32 bytes)
+#   Preencha META_APP_ID, META_APP_SECRET, META_CONFIG_ID, etc.
+
+# 3. Banco (Prisma)
+pnpm db:generate
+pnpm db:migrate          # aplica migrations em dev
+pnpm --filter @wise/database db:seed   # organização raiz "Wise"
+
+# 4. Qualidade
+pnpm typecheck
+pnpm test
+```
+
+## Meta / Graph API
+
+O versionamento é **centralizado** (spec §5): `META_GRAPH_BASE_URL` +
+`META_GRAPH_VERSION`. Nenhuma URL `graph.facebook.com/vXX.X` espalhada pelo
+código. Toda chamada passa por `@wise/meta-provider`.
+
+> ⚠️ Confirme a versão GA atual da Graph API no
+> [changelog oficial](https://developers.facebook.com/docs/graph-api/changelog)
+> e ajuste `META_GRAPH_VERSION` antes de produção. Ver
+> [`docs/meta/`](docs/meta/) para a documentação verificada de cada integração.
+
+## Segurança
+
+- Tokens cifrados em repouso (AES-256-GCM) via `CredentialVault`; nunca em texto
+  puro nem no frontend (spec §8, §46).
+- Segredos só no backend/worker; `.env` nunca é commitado.
+- Logs com redação automática de tokens/segredos (spec §42, §43).
+- RBAC aplicado no backend; isolamento por `organization_id` (spec §10, §34).
+
+## Conformidade
+
+Este produto **não** implementa evasão de limites, rotação para contornar
+bloqueios, mascaramento de origem, bypass de enforcement, scraping ou API não
+oficial (spec §67). Recursos que conflitem com políticas oficiais não são
+implementados silenciosamente.
+
+## Licença
+
+Proprietário / privado.

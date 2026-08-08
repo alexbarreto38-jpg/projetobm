@@ -1,0 +1,733 @@
+// ==========================================================================
+// Wise API Manager — Prisma schema
+//
+// Princípios:
+//  - Multi-tenant: toda tabela operacional carrega organization_id e é
+//    indexada por ele. O isolamento é aplicado no backend, nunca no frontend.
+//  - Meta como source of truth: guardamos SEMPRE o ID oficial da Meta
+//    (external_*_id) além da nossa representação interna. Nunca usamos o
+//    número textual como identificador.
+//  - Compatibilidade 2026: whatsapp_accounts != WABA permanentemente. O campo
+//    accountModel (LEGACY | NEW_MODEL | UNKNOWN) + as tabelas phone_accounts /
+//    messaging_accounts permitem migrar sem quebrar o modelo atual.
+//  - Rastreabilidade: eventos de webhook e de mensagem guardam o payload bruto
+//    (rawPayload) sem sobrescrever. IDs de idempotência protegem retries.
+// ==========================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===========================================================================
+// ENUMS
+// ===========================================================================
+
+/// Papel do usuário no painel (RBAC — spec §34).
+enum Role {
+  SUPER_ADMIN
+  ORGANIZATION_ADMIN
+  MANAGER
+  OPERATOR
+  VIEWER
+}
+
+/// Modelo de conta Meta. Nunca assumir que WhatsApp account == WABA (spec §9, §4).
+enum AccountModel {
+  LEGACY
+  NEW_MODEL
+  UNKNOWN
+}
+
+/// Estado de uma conexão Meta (spec §11).
+enum MetaConnectionStatus {
+  CONNECTED
+  ACTION_REQUIRED
+  EXPIRED
+  REVOKED
+  ERROR
+}
+
+/// Estado do ciclo de vida de uma credencial no CredentialVault (spec §8).
+enum CredentialStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+  INVALID
+}
+
+/// Categoria de template — deve acompanhar a terminologia oficial vigente da
+/// Meta. Categoria interna NUNCA substitui as regras oficiais (spec §21).
+enum TemplateCategory {
+  MARKETING
+  UTILITY
+  AUTHENTICATION
+  SERVICE
+}
+
+/// Estado do template mestre (rascunho interno). O estado por conta vive em
+/// TemplateDeployment.
+enum TemplateStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+/// Estado de uma implantação de template em uma conta específica (spec §17).
+/// Os estados oficiais devem ser confirmados na documentação antes de mapear
+/// as respostas da API para este enum.
+enum DeploymentStatus {
+  DRAFT
+  QUEUED
+  SUBMITTED
+  PENDING
+  APPROVED
+  REJECTED
+  PAUSED
+  DISABLED
+  ERROR
+}
+
+/// Tipo de consentimento registrado (spec §21). Acompanha terminologia Meta.
+enum ConsentType {
+  MARKETING
+  UTILITY
+  AUTHENTICATION
+  SERVICE
+}
+
+enum ConsentStatus {
+  GRANTED
+  WITHDRAWN
+  EXPIRED
+}
+
+/// Ciclo de vida de uma campanha (spec §55).
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  RUNNING
+  PAUSED
+  CANCEL_REQUESTED
+  CANCELLED
+  COMPLETED
+  FAILED
+}
+
+/// Resultado do preflight de compliance (spec §24).
+enum PreflightResult {
+  READY
+  WARNING
+  BLOCKED
+}
+
+/// Estado interno de uma mensagem. Estados externos da Meta são mapeados para
+/// estes; o payload original nunca é sobrescrito (spec §31).
+enum MessageStatus {
+  QUEUED
+  PROCESSING
+  ACCEPTED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+/// Estado do processamento de um evento de webhook (spec §30).
+enum WebhookProcessingStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+  IGNORED
+}
+
+/// Severidade de alerta do sistema (spec §29, §36).
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+// ===========================================================================
+// TENANCY & AUTH
+// ===========================================================================
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  isRoot    Boolean  @default(false) // organização "Wise" que administra o SaaS
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships       OrganizationUser[]
+  metaConnections   MetaConnection[]
+  metaBusinesses    MetaBusiness[]
+  whatsappAccounts  WhatsAppAccount[]
+  messagingAccounts MessagingAccount[]
+  phoneAccounts     PhoneAccount[]
+  phoneNumbers      PhoneNumber[]
+  credentials       Credential[]
+  templates         Template[]
+  templateDeployments TemplateDeployment[]
+  contacts          Contact[]
+  contactConsents   ContactConsent[]
+  contactOptouts    ContactOptout[]
+  campaigns         Campaign[]
+  campaignTargets   CampaignTarget[]
+  campaignRecipients CampaignRecipient[]
+  messages          Message[]
+  messageEvents     MessageEvent[]
+  webhookEvents     WebhookEvent[]
+  auditLogs         AuditLog[]
+  systemAlerts      SystemAlert[]
+
+  @@map("organizations")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  passwordHash  String? // null quando usar apenas provedores OAuth
+  emailVerified DateTime?
+  image         String?
+  isSuperAdmin  Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  memberships OrganizationUser[]
+  auditLogs   AuditLog[]
+
+  @@map("users")
+}
+
+/// Associação usuário <-> organização com papel (RBAC por tenant).
+model OrganizationUser {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  role           Role     @default(VIEWER)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@map("organization_users")
+}
+
+// ===========================================================================
+// META CONNECTIONS & CREDENTIALS
+// ===========================================================================
+
+/// Credencial (token) criptografada. O token JAMAIS aparece em texto puro nem
+/// no frontend. Armazenado como AES-256-GCM pelo CredentialVault (spec §8).
+model Credential {
+  id              String           @id @default(cuid())
+  organizationId  String
+  provider        String           @default("meta")
+  encryptedToken  String // ciphertext (iv:authTag:data), nunca o token puro
+  keyVersion      Int              @default(1) // suporta rotação de ENCRYPTION_KEY
+  tokenType       String? // ex.: system_user, business_integration
+  scopes          String[]         @default([])
+  status          CredentialStatus @default(ACTIVE)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  expiresAt       DateTime?
+  lastValidatedAt DateTime?
+
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  metaConnections MetaConnection[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@map("credentials")
+}
+
+/// Conexão de uma organização a um Meta Business (spec §11).
+model MetaConnection {
+  id             String               @id @default(cuid())
+  organizationId String
+  provider       String               @default("meta")
+  metaBusinessId String? // ID oficial do Business na Meta
+  credentialId   String?
+  status         MetaConnectionStatus @default(CONNECTED)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  lastSyncAt     DateTime?
+
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  credential       Credential?       @relation(fields: [credentialId], references: [id], onDelete: SetNull)
+  metaBusinesses   MetaBusiness[]
+  whatsappAccounts WhatsAppAccount[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@map("meta_connections")
+}
+
+/// Meta Business (portfólio) descoberto após o onboarding.
+model MetaBusiness {
+  id               String   @id @default(cuid())
+  organizationId   String
+  metaConnectionId String
+  externalBusinessId String // ID oficial do Business na Meta
+  name             String?
+  metadataJson     Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  metaConnection MetaConnection @relation(fields: [metaConnectionId], references: [id], onDelete: Cascade)
+
+  @@unique([metaConnectionId, externalBusinessId])
+  @@index([organizationId])
+  @@map("meta_businesses")
+}
+
+// ===========================================================================
+// WHATSAPP ACCOUNTS (LEGACY WABA + NEW MODEL)
+// ===========================================================================
+
+/// Representação interna de uma "conta WhatsApp".
+/// externalAccountId = ID oficial (WABA no legado). legacyWabaId é opcional
+/// para permitir migração ao novo modelo. accountModel guia o adapter usado.
+model WhatsAppAccount {
+  id                String       @id @default(cuid())
+  organizationId    String
+  metaConnectionId  String
+  externalAccountId String // ID oficial da Meta (WABA no modelo legado)
+  legacyWabaId      String? // não obrigatório — habilita migração 2026
+  accountModel      AccountModel @default(UNKNOWN)
+  name              String?
+  currency          String?
+  timezone          String?
+  status            String?
+  /// Capacidades detectadas em runtime (spec §58): legacyTemplates,
+  /// messagingAccountTemplates, coexistence, etc.
+  capabilities      Json?
+  metadataJson      Json?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  lastSyncAt        DateTime?
+
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  metaConnection    MetaConnection     @relation(fields: [metaConnectionId], references: [id], onDelete: Cascade)
+  phoneAccounts     PhoneAccount[]
+  messagingAccounts MessagingAccount[]
+  phoneNumbers      PhoneNumber[]
+  templateDeployments TemplateDeployment[]
+
+  @@unique([metaConnectionId, externalAccountId])
+  @@index([organizationId])
+  @@index([accountModel])
+  @@map("whatsapp_accounts")
+}
+
+/// Conta de telefone/identidade do novo modelo 2026 (spec §13).
+/// Campos oficiais só devem ser usados após confirmação na documentação Meta.
+model PhoneAccount {
+  id                     String   @id @default(cuid())
+  organizationId         String
+  whatsappAccountId      String
+  externalPhoneAccountId String
+  status                 String?
+  metadataJson           Json?
+  createdAt              DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  whatsappAccount WhatsAppAccount @relation(fields: [whatsappAccountId], references: [id], onDelete: Cascade)
+  phoneNumbers    PhoneNumber[]
+
+  @@unique([whatsappAccountId, externalPhoneAccountId])
+  @@index([organizationId])
+  @@map("phone_accounts")
+}
+
+/// Conta de mensageria do novo modelo 2026 (spec §14). Templates poderão se
+/// relacionar a ela quando o novo modelo exigir; compatibilidade legado mantida.
+model MessagingAccount {
+  id                         String   @id @default(cuid())
+  organizationId             String
+  whatsappAccountId          String
+  externalMessagingAccountId String
+  status                     String?
+  metadataJson               Json?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  whatsappAccount     WhatsAppAccount      @relation(fields: [whatsappAccountId], references: [id], onDelete: Cascade)
+  templateDeployments TemplateDeployment[]
+
+  @@unique([whatsappAccountId, externalMessagingAccountId])
+  @@index([organizationId])
+  @@map("messaging_accounts")
+}
+
+/// Número de telefone (spec §15). Nunca usar o número textual como PK interna;
+/// externalPhoneNumberId é o identificador oficial da Meta.
+model PhoneNumber {
+  id                   String   @id @default(cuid())
+  organizationId       String
+  whatsappAccountId    String
+  phoneAccountId       String? // nullable — populado no novo modelo
+  externalPhoneNumberId String // ID oficial da Meta
+  displayPhoneNumber   String?
+  verifiedName         String?
+  qualityStatus        String? // GREEN | YELLOW | RED (conforme Meta)
+  platformStatus       String?
+  messagingLimitInfo   Json?
+  /// Pausa operacional interna quando o número fica restrito (spec §25).
+  isPaused             Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  whatsappAccount    WhatsAppAccount     @relation(fields: [whatsappAccountId], references: [id], onDelete: Cascade)
+  phoneAccount       PhoneAccount?       @relation(fields: [phoneAccountId], references: [id], onDelete: SetNull)
+  campaignRecipients CampaignRecipient[]
+  messages           Message[]
+
+  @@unique([whatsappAccountId, externalPhoneNumberId])
+  @@index([organizationId])
+  @@index([isPaused])
+  @@map("phone_numbers")
+}
+
+// ===========================================================================
+// TEMPLATES & DEPLOYMENTS
+// ===========================================================================
+
+/// Template mestre (rascunho editável no editor visual — spec §16).
+/// A submissão real acontece por conta, via TemplateDeployment.
+model Template {
+  id             String           @id @default(cuid())
+  organizationId String
+  name           String // ex.: cobranca_v1
+  language       String // ex.: pt_BR
+  category       TemplateCategory
+  status         TemplateStatus   @default(DRAFT)
+  /// Componentes estruturados: header, body, footer, buttons, variables.
+  components     Json
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deployments  TemplateDeployment[]
+  campaigns    Campaign[]
+
+  @@unique([organizationId, name, language])
+  @@index([organizationId])
+  @@map("templates")
+}
+
+/// Implantação de um template em uma conta específica (spec §17). Cada linha é
+/// uma operação individual — replicar em N contas cria N deployments.
+model TemplateDeployment {
+  id                 String           @id @default(cuid())
+  organizationId     String
+  templateId         String
+  targetAccountId    String // WhatsAppAccount alvo
+  messagingAccountId String? // usado no novo modelo, quando aplicável
+  externalTemplateId String? // ID retornado pela Meta após submissão
+  status             DeploymentStatus @default(DRAFT)
+  /// Preservamos os campos de erro oficiais da Meta (spec §48, §49).
+  errorCode          String?
+  errorSubcode       String?
+  errorMessage       String?
+  fbtraceId          String?
+  /// Idempotência (spec §19): impede submissões duplicadas em retries.
+  idempotencyKey     String           @unique
+  submittedAt        DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  template         Template          @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  targetAccount    WhatsAppAccount   @relation(fields: [targetAccountId], references: [id], onDelete: Cascade)
+  messagingAccount MessagingAccount? @relation(fields: [messagingAccountId], references: [id], onDelete: SetNull)
+  campaigns        Campaign[]
+  campaignRecipients CampaignRecipient[]
+
+  @@unique([templateId, targetAccountId])
+  @@index([organizationId])
+  @@index([status])
+  @@map("template_deployments")
+}
+
+// ===========================================================================
+// CONTACTS, CONSENT & OPT-OUT
+// ===========================================================================
+
+model Contact {
+  id             String   @id @default(cuid())
+  organizationId String
+  /// Telefone normalizado (E.164). Usado para dedupe por organização.
+  phone          String
+  name           String?
+  customFields   Json?
+  source         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  consents           ContactConsent[]
+  optouts            ContactOptout[]
+  campaignRecipients CampaignRecipient[]
+  messages           Message[]
+
+  @@unique([organizationId, phone])
+  @@index([organizationId])
+  @@map("contacts")
+}
+
+/// Registro de consentimento/opt-in (spec §21). Fundamental para compliance.
+model ContactConsent {
+  id             String        @id @default(cuid())
+  organizationId String
+  contactId      String
+  consentType    ConsentType
+  source         String?
+  status         ConsentStatus @default(GRANTED)
+  evidence       Json? // prova do opt-in (origem, timestamp, texto, etc.)
+  consentedAt    DateTime      @default(now())
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contact      Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([contactId, consentType])
+  @@map("contact_consents")
+}
+
+/// Lista de exclusão (spec §22). Antes de gerar mensagem, verificar opt-out.
+model ContactOptout {
+  id             String   @id @default(cuid())
+  organizationId String
+  contactId      String
+  reason         String?
+  source         String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contact      Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, contactId])
+  @@index([organizationId])
+  @@map("contact_optouts")
+}
+
+// ===========================================================================
+// CAMPAIGNS
+// ===========================================================================
+
+model Campaign {
+  id                   String          @id @default(cuid())
+  organizationId       String
+  name                 String
+  templateId           String
+  templateDeploymentId String? // deployment principal quando conta única
+  status               CampaignStatus  @default(DRAFT)
+  preflightResult      PreflightResult?
+  preflightReport      Json?
+  scheduledAt          DateTime?
+  startedAt            DateTime?
+  completedAt          DateTime?
+  /// Idempotência na criação da campanha (spec §19).
+  idempotencyKey       String          @unique
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  template           Template            @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  templateDeployment TemplateDeployment? @relation(fields: [templateDeploymentId], references: [id], onDelete: SetNull)
+  targets            CampaignTarget[]
+  recipients         CampaignRecipient[]
+  messages           Message[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@map("campaigns")
+}
+
+/// Contas/números autorizados a processar a campanha (multi-conta — spec §53).
+model CampaignTarget {
+  id                   String   @id @default(cuid())
+  organizationId       String
+  campaignId           String
+  whatsappAccountId    String
+  phoneNumberId        String?
+  templateDeploymentId String?
+  createdAt            DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  campaign     Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([campaignId])
+  @@map("campaign_targets")
+}
+
+/// Destinatário resolvido pelo CampaignRouter. Registra exatamente qual ativo
+/// enviou cada mensagem (spec §53) e a chave de dedupe lógica (spec §54).
+model CampaignRecipient {
+  id                   String   @id @default(cuid())
+  organizationId       String
+  campaignId           String
+  contactId            String
+  whatsappAccountId    String?
+  phoneNumberId        String?
+  templateDeploymentId String?
+  /// hash(campaign_id + contact_id + logical_message) — impede duplicidade.
+  dedupeKey            String
+  createdAt            DateTime @default(now())
+
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  campaign           Campaign            @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact            Contact             @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  phoneNumber        PhoneNumber?        @relation(fields: [phoneNumberId], references: [id], onDelete: SetNull)
+  templateDeployment TemplateDeployment? @relation(fields: [templateDeploymentId], references: [id], onDelete: SetNull)
+  messages           Message[]
+
+  @@unique([campaignId, dedupeKey])
+  @@index([organizationId])
+  @@map("campaign_recipients")
+}
+
+// ===========================================================================
+// MESSAGES & EVENTS
+// ===========================================================================
+
+model Message {
+  id                  String        @id @default(cuid())
+  organizationId      String
+  campaignId          String?
+  campaignRecipientId String?
+  contactId           String?
+  phoneNumberId       String? // ativo que enviou
+  externalMessageId   String? // wamid retornado pela Meta
+  status              MessageStatus @default(QUEUED)
+  /// Idempotência (spec §19): worker reiniciado não duplica o envio.
+  idempotencyKey      String        @unique
+  errorCode           String?
+  errorMessage        String?
+  fbtraceId           String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  campaign          Campaign?          @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  campaignRecipient CampaignRecipient? @relation(fields: [campaignRecipientId], references: [id], onDelete: SetNull)
+  contact           Contact?           @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  phoneNumber       PhoneNumber?       @relation(fields: [phoneNumberId], references: [id], onDelete: SetNull)
+  events            MessageEvent[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([externalMessageId])
+  @@map("messages")
+}
+
+/// Evento de status de mensagem (spec §31). rawPayload nunca é sobrescrito.
+model MessageEvent {
+  id             String   @id @default(cuid())
+  organizationId String
+  messageId      String?
+  externalMessageId String?
+  status         String // estado externo bruto (ex.: sent, delivered, read, failed)
+  timestamp      DateTime
+  rawPayload     Json
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  message      Message?     @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([externalMessageId])
+  @@map("message_events")
+}
+
+// ===========================================================================
+// WEBHOOKS, AUDIT & ALERTS
+// ===========================================================================
+
+/// Evento bruto de webhook (spec §30). Persistido antes do processamento; a
+/// deduplicação usa dedupeKey. Payload original preservado.
+model WebhookEvent {
+  id             String                  @id @default(cuid())
+  organizationId String?
+  provider       String                  @default("meta")
+  eventType      String? // messages | statuses | template_status_update | ...
+  /// Chave de deduplicação (spec §19, §30) — impede reprocessar o mesmo evento.
+  dedupeKey      String                  @unique
+  status         WebhookProcessingStatus @default(RECEIVED)
+  rawPayload     Json
+  processedAt    DateTime?
+  error          String?
+  createdAt      DateTime                @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([eventType])
+  @@map("webhook_events")
+}
+
+/// Log de auditoria de ações sensíveis (spec §33).
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String?
+  userId         String?
+  action         String // ex.: USER_CREATED_CAMPAIGN, META_CONNECTION_CREATED
+  entityType     String?
+  entityId       String?
+  ip             String?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+/// Alerta do sistema exibido no painel (spec §29, §36, §74).
+model SystemAlert {
+  id             String        @id @default(cuid())
+  organizationId String?
+  severity       AlertSeverity @default(INFO)
+  status         AlertStatus   @default(OPEN)
+  code           String // ex.: TOKEN_EXPIRED, TEMPLATE_REJECTED, WEBHOOK_DOWN
+  title          String
+  detail         String?
+  metadata       Json?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([status])
+  @@map("system_alerts")
+}
