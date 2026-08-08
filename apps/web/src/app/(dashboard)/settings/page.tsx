@@ -1,6 +1,9 @@
+import { deleteOrgAction, purgeDataAction } from './actions';
+import { LgpdForms } from './lgpd-forms';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/page';
-import { getMe } from '@/lib/session';
+import { api } from '@/lib/api';
+import { currentOrgId, getMe } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,11 +15,22 @@ const ROLE_LABEL: Record<string, string> = {
   VIEWER: 'Visualizador',
 };
 
+interface Org {
+  id: string;
+  slug: string;
+}
+
 export default async function SettingsPage() {
   const me = await getMe();
+  const orgId = me ? currentOrgId(me) : null;
+  let slug = '';
+  if (orgId) {
+    const orgs = await api<{ organizations: Org[] }>('/api/organizations');
+    slug = orgs.data?.organizations.find((o) => o.id === orgId)?.slug ?? '';
+  }
 
   return (
-    <div>
+    <div className="space-y-8">
       <PageHeader title="Configurações" description="Conta, papéis e organizações." />
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
@@ -36,9 +50,9 @@ export default async function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-1 text-sm">
             {me && Object.entries(me.memberships).length > 0 ? (
-              Object.entries(me.memberships).map(([orgId, role]) => (
-                <div key={orgId} className="flex justify-between">
-                  <span className="text-wise-muted">{orgId.slice(0, 8)}…</span>
+              Object.entries(me.memberships).map(([oid, role]) => (
+                <div key={oid} className="flex justify-between">
+                  <span className="text-wise-muted">{oid.slice(0, 8)}…</span>
                   <span>{ROLE_LABEL[role] ?? role}</span>
                 </div>
               ))
@@ -48,6 +62,17 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {orgId ? (
+        <section>
+          <h2 className="mb-3 text-sm font-medium text-wise-muted">Dados &amp; LGPD</h2>
+          <LgpdForms
+            slug={slug}
+            purgeAction={purgeDataAction.bind(null, orgId)}
+            deleteAction={deleteOrgAction.bind(null, orgId)}
+          />
+        </section>
+      ) : null}
     </div>
   );
 }

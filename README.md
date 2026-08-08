@@ -43,11 +43,18 @@ Business Platform**, usando **exclusivamente** APIs e fluxos **oficiais da Meta*
 - ✅ **Robustez operacional:** `RateLimiter` (token-bucket/Redis) por número (§41),
   **dead-letter queue** com retry manual que re-valida (§56), e **sincronização
   periódica** de contas (`account-sync`, §50) — Meta como source of truth
-- ✅ **118 testes** (unitários + integração contra Postgres real + round-trip real
-  de BullMQ/Redis): vault, webhook, erros Meta, senha, sessão, autorização,
-  isolamento multi-tenant, RBAC, conexão Meta, webhooks, templates, telefone,
-  contatos/importação, campanhas/preflight, roteamento, envio, circuit breaker,
-  relatórios, health e alertas
+- ✅ **LGPD (§44):** exportação de dados, exclusão total da organização (com
+  confirmação por slug) e retenção/minimização — com telas em Configurações
+- ✅ **Sentry (§43):** integração opcional (api/worker) ativada por DSN, com
+  redação recursiva de tokens/segredos antes do envio
+- ✅ **Painel completo:** páginas de Dead-letter (reprocessar/descartar),
+  Diagnóstico por conta (health 🟢/🔴) e Dados/LGPD
+- ✅ **124 testes** (unit + integração contra Postgres/Redis reais) **+ 2 E2E
+  Playwright** (login e registro→dashboard→criar template) rodando de verdade
+  contra a stack: vault, webhook, erros Meta, auth, RBAC, isolamento, conexão
+  Meta, webhooks, templates, telefone, contatos/import, campanhas/preflight,
+  roteamento, envio, breaker, rate limit, relatórios, health, alertas,
+  dead-letter, sync, LGPD e redação Sentry
 - ✅ CI (serviços Postgres + Redis, migrate, lint, typecheck, test, build)
 
 - ✅ **Painel `apps/web`** (Next.js App Router + Tailwind, tema preto/branco/amarelo):

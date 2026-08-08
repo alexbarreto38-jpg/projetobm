@@ -1,5 +1,5 @@
 import { prisma } from '@wise/database';
-import { logger } from '@wise/logger';
+import { captureException, initSentry, logger } from '@wise/logger';
 import { buildApp } from './app.js';
 import { buildMetaContext, type MetaContext } from './meta/context.js';
 import {
@@ -22,6 +22,7 @@ import type {
  * (Fase 1: auth + organizations. Webhooks/Meta entram nas fases seguintes.)
  */
 async function main() {
+  await initSentry('api');
   const authSecret = process.env.AUTH_SECRET;
   if (!authSecret || authSecret.length < 16) {
     throw new Error('AUTH_SECRET ausente ou muito curto (mín. 16 caracteres).');
@@ -80,7 +81,8 @@ async function main() {
   logger.info({ port, host }, 'API iniciada');
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
   logger.error(err, 'Falha ao iniciar a API');
+  await captureException(err, { phase: 'bootstrap' });
   process.exit(1);
 });

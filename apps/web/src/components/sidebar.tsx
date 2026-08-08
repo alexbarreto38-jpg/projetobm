@@ -4,6 +4,7 @@ import {
   BarChart3,
   Bell,
   Building2,
+  Inbox,
   LayoutDashboard,
   MessageSquareText,
   Send,
@@ -24,6 +25,7 @@ const NAV = [
   { href: '/contacts', label: 'Contatos', icon: Users },
   { href: '/reports', label: 'Relatórios', icon: BarChart3 },
   { href: '/alerts', label: 'Alertas', icon: Bell },
+  { href: '/dead-letters', label: 'Dead-letter', icon: Inbox },
   { href: '/settings', label: 'Configurações', icon: Settings },
 ];
 

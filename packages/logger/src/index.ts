@@ -51,3 +51,4 @@ export function childLogger(bindings: Record<string, unknown>): Logger {
 }
 
 export type { Logger };
+export { initSentry, captureException } from './sentry.js';

@@ -129,6 +129,18 @@ Ver `docs/meta/account-model-2026.md`. Resumo:
 | 9 | Relatórios, dashboard, auditoria, alertas | 🟢 relatórios + health check + alertas (API + painel) |
 | 10 | Novo account model 2026 conforme disponibilidade oficial | ⚪ |
 
+## Conformidade & observabilidade adicionais
+
+- **LGPD (§44):** `LgpdService` — exportação de dados pessoais/operacionais (sem
+  segredos), exclusão total da organização (cascade, com confirmação por slug) e
+  purga por retenção. Endpoints `/data-export`, `/data-purge`, `DELETE /data`.
+- **Sentry (§43):** `initSentry`/`captureException` em `@wise/logger`, ativados
+  por `SENTRY_DSN`, com `beforeSend` que redige tokens/segredos recursivamente.
+  Integrado no bootstrap e nas falhas de api/worker.
+- **E2E (Playwright):** `apps/web/e2e` — smoke do login e do fluxo
+  registro→dashboard→criar template. Roda via `pnpm test:e2e` contra a stack
+  (usa o Chromium pré-instalado; `PW_CHROMIUM_PATH`), fora do `pnpm test` unitário.
+
 ## Critério de "pronto" (spec §76)
 
 Uma feature só está pronta com: frontend · backend · validação · autorização ·

@@ -14,7 +14,8 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "pino": "^9.3.0"
+    "pino": "^9.3.0",
+    "@sentry/node": "^8.26.0"
   },
   "devDependencies": {
     "typescript": "^5.5.0",

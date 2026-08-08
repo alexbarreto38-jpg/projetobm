@@ -1,5 +1,5 @@
 import { prisma } from '@wise/database';
-import { logger } from '@wise/logger';
+import { captureException, initSentry, logger } from '@wise/logger';
 import { createRedisConnection, createWorker, QUEUE_NAMES } from '@wise/queue';
 import {
   CircuitBreaker,
@@ -23,6 +23,7 @@ import { processWebhookEvent } from './processors/webhook.js';
  * fases reutilizando esta mesma infraestrutura.
  */
 async function main() {
+  await initSentry('worker');
   const redisUrl = process.env.REDIS_URL;
   if (!redisUrl) throw new Error('REDIS_URL ausente.');
 
@@ -34,6 +35,7 @@ async function main() {
     (queue: (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES]) =>
     async (job: { id?: string; data?: unknown; attemptsMade?: number; opts?: { attempts?: number } } | undefined, err: Error) => {
       logger.error({ queue, jobId: job?.id, err: err.message }, 'Job falhou');
+      void captureException(err, { queue, jobId: job?.id });
       if (job && isFinalAttempt(job.attemptsMade ?? 0, job.opts?.attempts)) {
         await recordDeadLetter(prisma, {
           queue,
@@ -184,7 +186,8 @@ async function main() {
   process.on('SIGINT', shutdown);
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
   logger.error(err, 'Falha ao iniciar workers');
+  await captureException(err, { phase: 'bootstrap' });
   process.exit(1);
 });

@@ -91,11 +91,19 @@ export default async function MetaAccountsPage() {
                     : '—'}
                 </Td>
                 <Td>
-                  <form action={syncAccountAction.bind(null, orgId, a.id)}>
-                    <SubmitButton variant="ghost" size="sm" pendingLabel="…">
-                      Sincronizar
-                    </SubmitButton>
-                  </form>
+                  <div className="flex items-center gap-2">
+                    <form action={syncAccountAction.bind(null, orgId, a.id)}>
+                      <SubmitButton variant="ghost" size="sm" pendingLabel="…">
+                        Sincronizar
+                      </SubmitButton>
+                    </form>
+                    <a
+                      href={`/meta/accounts/${a.id}/health`}
+                      className="text-sm text-wise-muted hover:text-wise-text"
+                    >
+                      Diagnóstico
+                    </a>
+                  </div>
                 </Td>
               </tr>
             ))}

@@ -8,6 +8,7 @@ import {
   type AuthContext,
 } from '@wise/auth';
 import type { PrismaClient } from '@wise/database';
+import { captureException } from '@wise/logger';
 import { MetaApiError, type MetaErrorCategory } from '@wise/meta-provider';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
@@ -19,6 +20,7 @@ import { registerMetaRoutes } from './modules/meta/routes.js';
 import { registerCampaignRoutes } from './modules/campaigns/routes.js';
 import { registerContactRoutes } from './modules/contacts/routes.js';
 import { registerDeadLetterRoutes } from './modules/deadletter/routes.js';
+import { registerLgpdRoutes } from './modules/lgpd/routes.js';
 import { registerOrganizationRoutes } from './modules/organizations/routes.js';
 import { registerReportRoutes } from './modules/reports/routes.js';
 import { registerTemplateRoutes } from './modules/templates/routes.js';
@@ -136,6 +138,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     }
     // Erro inesperado: nunca vazar stack ao cliente (spec §48).
     request.log.error(error);
+    void captureException(error, { url: request.url, method: request.method });
     return reply
       .status(500)
       .send({ error: { code: 'INTERNAL', message: 'Erro interno.' } });
@@ -152,6 +155,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       await registerCampaignRoutes(instance, config);
       await registerReportRoutes(instance, config);
       await registerDeadLetterRoutes(instance, config);
+      await registerLgpdRoutes(instance, config);
       if (config.meta) {
         await registerMetaRoutes(instance, config, config.meta);
       }
