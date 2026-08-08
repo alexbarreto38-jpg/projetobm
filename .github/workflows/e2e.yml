@@ -1,0 +1,70 @@
+name: E2E
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wise
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 10s
+          --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 10s
+          --health-timeout 5s --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wise?schema=public
+      REDIS_URL: redis://localhost:6379
+      AUTH_SECRET: e2e-secret-please-change-0123456789
+      ENCRYPTION_KEY: jr8UxpURCNb57IFyMVidbdVG6vxCaQOAR96wodTveMg=
+      META_APP_ID: mock-app-id
+      META_APP_SECRET: mock-app-secret
+      META_GRAPH_BASE_URL: http://localhost:4000
+      META_GRAPH_VERSION: v23.0
+      META_WEBHOOK_VERIFY_TOKEN: dev-verify
+      COOKIE_SECURE: 'false'
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: pnpm }
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm --filter @wise/database exec prisma migrate deploy
+      - run: pnpm --filter @wise/web exec playwright install --with-deps chromium
+      - run: pnpm --filter @wise/web build
+
+      - name: Start stack
+        run: |
+          nohup pnpm --filter @wise/mock-meta start > /tmp/mock.log 2>&1 &
+          nohup pnpm --filter @wise/api start > /tmp/api.log 2>&1 &
+          API_URL=http://localhost:3001 NODE_ENV=production nohup pnpm --filter @wise/web start > /tmp/web.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/login >/dev/null && curl -sf http://localhost:3001/health >/dev/null && break
+            sleep 2
+          done
+
+      - name: Run E2E
+        run: pnpm --filter @wise/web test:e2e
+
+      - name: Dump logs on failure
+        if: failure()
+        run: tail -n 100 /tmp/api.log /tmp/web.log /tmp/mock.log || true

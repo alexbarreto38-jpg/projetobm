@@ -1,0 +1,79 @@
+# Blueprint do Render para a API e os workers (+ Postgres e Redis gerenciados).
+# O painel web é publicado na Vercel (ver apps/web/vercel.json e docs/deploy.md).
+#
+# Preencha os segredos marcados com `sync: false` no dashboard do Render.
+
+databases:
+  - name: wise-postgres
+    plan: free
+
+services:
+  - type: redis
+    name: wise-redis
+    plan: free
+    ipAllowList: [] # acesso apenas interno
+
+  - type: web
+    name: wise-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: sh -c "pnpm --filter @wise/database db:deploy && pnpm --filter @wise/api start"
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_PORT
+        value: '3001'
+      - key: DATABASE_URL
+        fromDatabase:
+          name: wise-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: wise-redis
+          property: connectionString
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        sync: false # gere: openssl rand -base64 32
+      - key: META_APP_ID
+        sync: false
+      - key: META_APP_SECRET
+        sync: false
+      - key: META_CONFIG_ID
+        sync: false
+      - key: META_GRAPH_VERSION
+        value: v23.0
+      - key: META_WEBHOOK_VERIFY_TOKEN
+        sync: false
+      - key: META_REDIRECT_URI
+        sync: false
+
+  - type: worker
+    name: wise-worker
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: pnpm --filter @wise/worker start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: wise-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: wise-redis
+          property: connectionString
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: META_APP_ID
+        sync: false
+      - key: META_APP_SECRET
+        sync: false
+      - key: META_GRAPH_VERSION
+        value: v23.0

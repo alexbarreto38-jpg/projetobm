@@ -1,0 +1,50 @@
+# Deploy em produção
+
+Arquitetura sugerida (spec §2): **web na Vercel**, **api + worker** em
+Railway/Render/VPS, **Postgres** e **Redis** gerenciados.
+
+> Antes de produção: confirme os endpoints/permissões na doc oficial da Meta
+> (spec §66), tenha o app aprovado no App Review e ajuste `META_GRAPH_VERSION`
+> para a versão GA atual. Ver `docs/meta/setup-app.md`.
+
+## 1. Bancos gerenciados
+- **PostgreSQL** (ex.: Neon, Supabase, Railway, Render). Guarde a `DATABASE_URL`.
+- **Redis** (ex.: Upstash, Railway, Render). Guarde a `REDIS_URL`.
+
+## 2. API + Workers (Render — blueprint pronto)
+O `render.yaml` na raiz define `wise-api` (web service Docker) e `wise-worker`
+(worker Docker), além de Postgres e Redis.
+
+1. No Render: **New → Blueprint**, aponte para o repositório.
+2. Preencha os segredos `sync: false`: `ENCRYPTION_KEY` (`openssl rand -base64
+   32`), `META_APP_ID`, `META_APP_SECRET`, `META_CONFIG_ID`,
+   `META_WEBHOOK_VERIFY_TOKEN`, `META_REDIRECT_URI`.
+3. A API roda `prisma migrate deploy` no start e responde em `/health`.
+
+Alternativas (Railway/VPS): use a mesma imagem do `Dockerfile`, com os comandos:
+- API: `pnpm --filter @wise/database db:deploy && pnpm --filter @wise/api start`
+- Worker: `pnpm --filter @wise/worker start`
+
+## 3. Painel web (Vercel)
+1. Importe o repositório na Vercel; **Root Directory** = `apps/web`
+   (o `vercel.json` já ajusta build/install para o monorepo pnpm).
+2. Variável de ambiente: **`API_URL`** = URL pública da API (ex.:
+   `https://wise-api.onrender.com`). É lida em runtime (server-side); o token
+   nunca vai ao browser.
+3. Em produção, os cookies são `Secure` por padrão (HTTPS) — não defina
+   `COOKIE_SECURE`.
+
+## 4. Webhooks da Meta
+Aponte o webhook do app da Meta para:
+`https://SUA_API/api/webhooks/meta/whatsapp` com o `META_WEBHOOK_VERIFY_TOKEN`.
+
+## 5. Checklist de variáveis (produção)
+
+| Serviço | Variáveis |
+|---------|-----------|
+| API | `DATABASE_URL`, `REDIS_URL`, `AUTH_SECRET`, `ENCRYPTION_KEY`, `META_APP_ID`, `META_APP_SECRET`, `META_CONFIG_ID`, `META_GRAPH_VERSION`, `META_WEBHOOK_VERIFY_TOKEN`, `META_REDIRECT_URI` |
+| Worker | `DATABASE_URL`, `REDIS_URL`, `ENCRYPTION_KEY`, `META_APP_ID`, `META_APP_SECRET`, `META_GRAPH_VERSION` |
+| Web | `API_URL` |
+
+Nunca comite segredos. Rotação de `ENCRYPTION_KEY` é suportada via
+`ENCRYPTION_KEY_PREVIOUS` (o CredentialVault decifra credenciais antigas).

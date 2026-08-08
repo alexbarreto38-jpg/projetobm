@@ -53,6 +53,22 @@ pnpm --filter @wise/web dev           # painel (porta 3000)
 ENCRYPTION_KEY=$ENCRYPTION_KEY pnpm --filter @wise/api seed:demo
 ```
 
+## Ver os relatórios ganharem vida (sem Meta real)
+
+Depois de iniciar uma campanha (as mensagens ficam `SENT` via mock), simule os
+webhooks de entrega/leitura da Meta:
+
+```bash
+# Docker:
+docker compose exec api pnpm --filter @wise/api simulate:webhooks
+# Manual (API_INTERNAL_URL e META_APP_SECRET devem bater com a API no ar):
+API_INTERNAL_URL=http://localhost:3001 META_APP_SECRET=mock-app-secret \
+  pnpm --filter @wise/api simulate:webhooks
+```
+
+O script assina os eventos como a Meta (X-Hub-Signature-256); o worker processa
+e as taxas de **entregues/lidas** aparecem em Relatórios.
+
 ## Rodando os testes
 
 ```bash
