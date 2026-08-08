@@ -106,6 +106,14 @@ enum ConsentStatus {
   EXPIRED
 }
 
+/// Estado de um job de importação de contatos (spec §40).
+enum ImportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
 /// Ciclo de vida de uma campanha (spec §55).
 enum CampaignStatus {
   DRAFT
@@ -182,6 +190,7 @@ model Organization {
   templates         Template[]
   templateDeployments TemplateDeployment[]
   contacts          Contact[]
+  contactImports    ContactImport[]
   contactConsents   ContactConsent[]
   contactOptouts    ContactOptout[]
   campaigns         Campaign[]
@@ -498,6 +507,36 @@ model Contact {
   @@unique([organizationId, phone])
   @@index([organizationId])
   @@map("contacts")
+}
+
+/// Job de importação de contatos (spec §40). Processado em background por
+/// streaming/batches; guarda os contadores de progresso.
+model ContactImport {
+  id             String       @id @default(cuid())
+  organizationId String
+  filename       String?
+  status         ImportStatus @default(PENDING)
+  source         String? // origem lógica atribuída aos contatos importados
+  /// Conteúdo do CSV para MVP; em produção use armazenamento de objetos e
+  /// preencha sourcePath em vez de sourceText.
+  sourceText     String?      @db.Text
+  sourcePath     String?
+  totalRows      Int          @default(0)
+  imported       Int          @default(0)
+  duplicates     Int          @default(0)
+  invalid        Int          @default(0)
+  optout         Int          @default(0)
+  errorMessage   String?
+  /// Idempotência (spec §19): reprocessar o mesmo import não duplica contatos.
+  idempotencyKey String       @unique
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([status])
+  @@map("contact_imports")
 }
 
 /// Registro de consentimento/opt-in (spec §21). Fundamental para compliance.

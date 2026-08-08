@@ -3,10 +3,15 @@ import { logger } from '@wise/logger';
 import { buildApp } from './app.js';
 import { buildMetaContext, type MetaContext } from './meta/context.js';
 import {
+  BullMqContactImportEnqueuer,
   BullMqTemplateDeploymentEnqueuer,
   BullMqWebhookEnqueuer,
 } from './queue/bullmqEnqueuer.js';
-import type { TemplateDeploymentEnqueuer, WebhookEnqueuer } from './queue/enqueuer.js';
+import type {
+  ContactImportEnqueuer,
+  TemplateDeploymentEnqueuer,
+  WebhookEnqueuer,
+} from './queue/enqueuer.js';
 
 /**
  * Bootstrap do servidor de API. Segredos vêm do ambiente; nunca hardcoded.
@@ -40,9 +45,11 @@ async function main() {
 
   let webhookEnqueuer: WebhookEnqueuer | undefined;
   let templateDeploymentEnqueuer: TemplateDeploymentEnqueuer | undefined;
+  let contactImportEnqueuer: ContactImportEnqueuer | undefined;
   if (process.env.REDIS_URL) {
     webhookEnqueuer = new BullMqWebhookEnqueuer(process.env.REDIS_URL);
     templateDeploymentEnqueuer = new BullMqTemplateDeploymentEnqueuer(process.env.REDIS_URL);
+    contactImportEnqueuer = new BullMqContactImportEnqueuer(process.env.REDIS_URL);
   } else {
     logger.warn('REDIS_URL ausente — jobs não serão enfileirados.');
   }
@@ -54,6 +61,7 @@ async function main() {
     meta,
     webhookEnqueuer,
     templateDeploymentEnqueuer,
+    contactImportEnqueuer,
   });
 
   const port = Number(process.env.API_PORT ?? 3001);

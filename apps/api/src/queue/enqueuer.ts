@@ -11,3 +11,8 @@ export interface WebhookEnqueuer {
 export interface TemplateDeploymentEnqueuer {
   enqueue(deploymentId: string): Promise<void>;
 }
+
+/** Enfileira importações de contatos (fila contact-import — spec §40). */
+export interface ContactImportEnqueuer {
+  enqueue(contactImportId: string): Promise<void>;
+}

@@ -2,6 +2,7 @@ import { prisma } from '@wise/database';
 import { logger } from '@wise/logger';
 import { createRedisConnection, createWorker, QUEUE_NAMES } from '@wise/queue';
 import { buildWorkerMeta } from './meta.js';
+import { processContactImport } from './processors/contactImport.js';
 import { processTemplateDeployment } from './processors/templateDeployment.js';
 import { processWebhookEvent } from './processors/webhook.js';
 
@@ -47,12 +48,30 @@ async function main() {
     logger.error({ jobId: job?.id, err: err.message }, 'Job de deployment falhou');
   });
 
-  logger.info('Workers iniciados: webhook-processing, meta-template-deployment');
+  // Worker de importação de contatos (spec §40).
+  const importWorker = createWorker(
+    QUEUE_NAMES.contactImport,
+    async (job) => {
+      const { contactImportId } = job.data;
+      const result = await processContactImport(prisma, contactImportId);
+      logger.info({ contactImportId, ...result }, 'Importação de contatos processada');
+      return result;
+    },
+    connection,
+  );
+  importWorker.on('failed', (job, err) => {
+    logger.error({ jobId: job?.id, err: err.message }, 'Job de importação falhou');
+  });
+
+  logger.info(
+    'Workers iniciados: webhook-processing, meta-template-deployment, contact-import',
+  );
 
   const shutdown = async () => {
     logger.info('Encerrando workers...');
     await webhookWorker.close();
     await deploymentWorker.close();
+    await importWorker.close();
     await connection.quit();
     await prisma.$disconnect();
     process.exit(0);

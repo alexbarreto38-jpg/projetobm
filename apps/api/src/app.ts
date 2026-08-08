@@ -16,10 +16,15 @@ import { AppError, unauthorized } from './lib/errors.js';
 import type { MetaContext } from './meta/context.js';
 import { registerAuthRoutes } from './modules/auth/routes.js';
 import { registerMetaRoutes } from './modules/meta/routes.js';
+import { registerContactRoutes } from './modules/contacts/routes.js';
 import { registerOrganizationRoutes } from './modules/organizations/routes.js';
 import { registerTemplateRoutes } from './modules/templates/routes.js';
 import { registerWebhookRoutes } from './modules/webhooks/routes.js';
-import type { TemplateDeploymentEnqueuer, WebhookEnqueuer } from './queue/enqueuer.js';
+import type {
+  ContactImportEnqueuer,
+  TemplateDeploymentEnqueuer,
+  WebhookEnqueuer,
+} from './queue/enqueuer.js';
 
 export interface AppConfig {
   prisma: PrismaClient;
@@ -37,6 +42,8 @@ export interface AppConfig {
   webhookEnqueuer?: WebhookEnqueuer;
   /** Enfileirador de submissões de template. */
   templateDeploymentEnqueuer?: TemplateDeploymentEnqueuer;
+  /** Enfileirador de importações de contatos. */
+  contactImportEnqueuer?: ContactImportEnqueuer;
 }
 
 declare module 'fastify' {
@@ -132,6 +139,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       await registerAuthRoutes(instance, config);
       await registerOrganizationRoutes(instance, config);
       await registerTemplateRoutes(instance, config);
+      await registerContactRoutes(instance, config);
       if (config.meta) {
         await registerMetaRoutes(instance, config, config.meta);
       }

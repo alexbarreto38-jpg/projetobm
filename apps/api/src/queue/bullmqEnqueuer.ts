@@ -1,5 +1,9 @@
 import { createQueue, createRedisConnection, QUEUE_NAMES, type Queue } from '@wise/queue';
-import type { TemplateDeploymentEnqueuer, WebhookEnqueuer } from './enqueuer.js';
+import type {
+  ContactImportEnqueuer,
+  TemplateDeploymentEnqueuer,
+  WebhookEnqueuer,
+} from './enqueuer.js';
 
 /**
  * Enqueuer de webhooks apoiado no BullMQ/Redis (produção). Em testes usamos um
@@ -34,5 +38,18 @@ export class BullMqTemplateDeploymentEnqueuer implements TemplateDeploymentEnque
 
   async enqueue(deploymentId: string): Promise<void> {
     await this.queue.add('submit', { deploymentId }, { jobId: `deployment_${deploymentId}` });
+  }
+}
+
+export class BullMqContactImportEnqueuer implements ContactImportEnqueuer {
+  private readonly queue: Queue<{ contactImportId: string }>;
+
+  constructor(redisUrl: string) {
+    const connection = createRedisConnection(redisUrl);
+    this.queue = createQueue(QUEUE_NAMES.contactImport, connection);
+  }
+
+  async enqueue(contactImportId: string): Promise<void> {
+    await this.queue.add('import', { contactImportId }, { jobId: `import_${contactImportId}` });
   }
 }

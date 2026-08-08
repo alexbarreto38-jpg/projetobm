@@ -17,7 +17,9 @@
     "@wise/logger": "workspace:*",
     "@wise/meta-provider": "workspace:*",
     "@wise/queue": "workspace:*",
-    "@wise/types": "workspace:*"
+    "@wise/types": "workspace:*",
+    "@wise/validation": "workspace:*",
+    "csv-parse": "^5.5.6"
   },
   "devDependencies": {
     "tsx": "^4.16.0",

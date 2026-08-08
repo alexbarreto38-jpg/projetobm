@@ -31,14 +31,18 @@ Business Platform**, usando **exclusivamente** APIs e fluxos **oficiais da Meta*
 - ✅ **Templates + Bulk Manager (Fase 5):** CRUD de template mestre, replicação
   idempotente em N contas via fila `meta-template-deployment`, worker que submete
   à Meta (preservando erros) e acompanhamento individual de status
-- ✅ **71 testes** (unitários + integração contra Postgres real + round-trip real
+- ✅ **Contatos (Fase 6):** CRUD com normalização E.164 (libphonenumber-js) e
+  dedupe por (org, telefone), consentimento/opt-in, opt-out, e **import de CSV
+  em background por streaming/batches** com contadores de progresso
+  (importados/duplicados/inválidos/opt-out)
+- ✅ **85 testes** (unitários + integração contra Postgres real + round-trip real
   de BullMQ/Redis): vault, webhook, erros Meta, senha, sessão, autorização,
-  isolamento multi-tenant, RBAC, conexão Meta, webhooks, templates e ciclo
-  completo submissão→aprovação
+  isolamento multi-tenant, RBAC, conexão Meta, webhooks, templates (ciclo
+  submissão→aprovação), telefone, contatos e importação
 - ✅ CI (serviços Postgres + Redis, migrate, lint, typecheck, test, build)
 
-Próximo: `apps/web` (painel Next.js) consumindo a API; contatos + import CSV +
-opt-in/opt-out; campanhas + preflight; envio (`docs/architecture/overview.md`).
+Próximo: `apps/web` (painel Next.js) consumindo a API; campanhas + preflight
+(§24) + CampaignRouter; envio via workers (`docs/architecture/overview.md`).
 
 ## Stack
 

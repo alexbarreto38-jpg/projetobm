@@ -7,6 +7,7 @@ export const QUEUE_NAMES = {
   messageSend: 'message-send',
   webhookProcessing: 'webhook-processing',
   accountSync: 'account-sync',
+  contactImport: 'contact-import',
   deadLetter: 'dead-letter',
 } as const;
 
@@ -19,6 +20,7 @@ export interface JobPayloads {
   [QUEUE_NAMES.campaignProcessing]: { campaignId: string };
   [QUEUE_NAMES.messageSend]: { messageId: string };
   [QUEUE_NAMES.accountSync]: { organizationId: string; accountId: string };
+  [QUEUE_NAMES.contactImport]: { contactImportId: string };
   [QUEUE_NAMES.deadLetter]: { originalQueue: string; reason: string; data: unknown };
 }
 
