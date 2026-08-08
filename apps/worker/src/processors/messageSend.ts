@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@wise/database';
 import { logger } from '@wise/logger';
 import { MetaApiError } from '@wise/meta-provider';
+import type { CircuitBreaker } from '@wise/queue';
 import type { AccountModel } from '@wise/types';
 import type { WorkerMeta } from '../meta.js';
 
@@ -20,6 +21,7 @@ export async function processMessageSend(
   prisma: PrismaClient,
   meta: WorkerMeta,
   messageId: string,
+  breaker?: CircuitBreaker,
 ): Promise<MessageSendResult> {
   const message = await prisma.message.findUnique({
     where: { id: messageId },
@@ -80,6 +82,20 @@ export async function processMessageSend(
     return { status: 'FAILED', skipped: false };
   }
 
+  // Circuit breaker por número (spec §28): não martela um ativo problemático.
+  if (breaker) {
+    const { allowed } = await breaker.canProceed(phone.id);
+    if (!allowed) {
+      // Deixa a mensagem em QUEUED e sinaliza retry — a fila reprocessa quando o
+      // breaker for para HALF_OPEN. Não redireciona para outro número (§25).
+      throw new MetaApiError({
+        category: 'TRANSIENT',
+        retryable: true,
+        message: 'Circuit breaker aberto para o número; envio adiado.',
+      });
+    }
+  }
+
   await prisma.message.update({ where: { id: messageId }, data: { status: 'PROCESSING' } });
 
   const accessToken = meta.vault.decrypt(credential.encryptedToken);
@@ -100,9 +116,11 @@ export async function processMessageSend(
       where: { id: messageId },
       data: { status: 'SENT', externalMessageId: result.externalMessageId ?? null },
     });
+    if (breaker) await breaker.recordSuccess(phone.id);
     return { status: 'SENT', skipped: false };
   } catch (err) {
     if (err instanceof MetaApiError) {
+      if (breaker) await breaker.recordFailure(phone.id);
       // Restrição da conta/número: PAUSA o número e alerta (spec §25). Não redireciona.
       if (err.category === 'ACCOUNT_STATE') {
         await prisma.phoneNumber.update({ where: { id: phone.id }, data: { isPaused: true } });

@@ -40,10 +40,11 @@ Business Platform**, usando **exclusivamente** APIs e fluxos **oficiais da Meta*
   números autorizados e não pausados (registrando qual ativo envia cada mensagem,
   §53) com chave de duplicidade (§54), e workers de geração e envio de mensagens
   (idempotentes; pausa o número em restrição da plataforma, §25)
-- ✅ **99 testes** (unitários + integração contra Postgres real + round-trip real
+- ✅ **108 testes** (unitários + integração contra Postgres real + round-trip real
   de BullMQ/Redis): vault, webhook, erros Meta, senha, sessão, autorização,
   isolamento multi-tenant, RBAC, conexão Meta, webhooks, templates, telefone,
-  contatos/importação, campanhas/preflight, roteamento e envio
+  contatos/importação, campanhas/preflight, roteamento, envio, circuit breaker,
+  relatórios, health e alertas
 - ✅ CI (serviços Postgres + Redis, migrate, lint, typecheck, test, build)
 
 - ✅ **Painel `apps/web`** (Next.js App Router + Tailwind, tema preto/branco/amarelo):
@@ -52,10 +53,16 @@ Business Platform**, usando **exclusivamente** APIs e fluxos **oficiais da Meta*
   Empresas, Contas Meta, Templates, Campanhas, Contatos, Relatórios, Alertas e
   Configurações consumindo a API (loading/empty/error states)
 
+- ✅ **Observabilidade + resiliência (Fase 9 + §28):** `CircuitBreaker` por número
+  (CLOSED→OPEN→HALF_OPEN, estado em Redis) integrado ao envio; `ReportsService`
+  (funil + taxas, §32), `AccountHealthService` (§29) e `AlertsService` (§36) com
+  endpoints e telas de Relatórios/Alertas no painel
+
 Fluxo mínimo de produção (§72) coberto de ponta a ponta contra mock: conectar →
 descobrir → template → replicar → aprovar → importar contatos → campanha →
-preflight → fila → envio → webhook. Próximo: circuit breaker (§28), health check
-(§29) e relatórios/dashboard de métricas (§32) — ver `docs/architecture/overview.md`.
+preflight → fila → envio → webhook, com métricas, health e alertas. **108 testes**
+verdes. Próximo (opcional): wizard de campanha e Bulk Manager no painel, rate
+control (§41), Sentry (§43) e o novo account model 2026 quando GA (Fase 10).
 
 ## Stack
 

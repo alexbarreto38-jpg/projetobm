@@ -91,8 +91,20 @@ Ver `docs/meta/account-model-2026.md`. Resumo:
   mensagens; `dedupeKey` em webhooks e destinatários.
 - **Retry** (spec §27): backoff exponencial + jitter para erros transitórios;
   respeita `Retry-After`; erros permanentes não são retentados.
-- **Circuit breaker** (spec §28) por conexão/número.
+- **Circuit breaker** (spec §28) por conexão/número — `CircuitBreaker` em
+  `@wise/queue` (CLOSED→OPEN→HALF_OPEN) com estado compartilhado em Redis;
+  integrado ao envio (`message-send`).
 - **Rate control** configurável (spec §41) — nunca para explorar limites.
+
+## Observabilidade (Fase 9)
+
+- **Relatórios** (`ReportsService`, §32): funil de mensagens (enviadas/entregues/
+  lidas/falhas/pendentes) + taxas, com filtros por data/campanha/número.
+- **Health check** (`AccountHealthService`, §29): conexão, permissão, conta,
+  número, webhook e templates por conta.
+- **Alertas** (`AlertsService`, §36): lista/reconhece/resolve alertas do sistema
+  (ex.: número restrito criado pelo envio ao pausar um número).
+- Telas de Relatórios e Alertas no painel consomem esses endpoints.
 
 ## Plano por fases (spec §70)
 
@@ -105,8 +117,8 @@ Ver `docs/meta/account-model-2026.md`. Resumo:
 | 5 | Templates, deployments, Bulk Template Manager | 🟢 CRUD + replicação + submissão prontos |
 | 6 | Contatos, import CSV, opt-in/opt-out | 🟢 CRUD + consentimento + opt-out + import por streaming |
 | 7 | Campanhas, Preflight, CampaignRouter | 🟢 CRUD + preflight + roteamento + geração de mensagens |
-| 8 | Fila de mensagens, workers, retry, idempotência, breaker | 🟡 envio + idempotência + pausa por restrição (falta circuit breaker) |
-| 9 | Relatórios, dashboard, auditoria, alertas | ⚪ |
+| 8 | Fila de mensagens, workers, retry, idempotência, breaker | 🟢 envio + idempotência + retry + circuit breaker (Redis) |
+| 9 | Relatórios, dashboard, auditoria, alertas | 🟢 relatórios + health check + alertas (API + painel) |
 | 10 | Novo account model 2026 conforme disponibilidade oficial | ⚪ |
 
 ## Critério de "pronto" (spec §76)

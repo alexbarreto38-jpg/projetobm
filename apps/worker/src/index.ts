@@ -1,7 +1,7 @@
 import { prisma } from '@wise/database';
 import { logger } from '@wise/logger';
 import { createRedisConnection, createWorker, QUEUE_NAMES } from '@wise/queue';
-import { createQueue } from '@wise/queue';
+import { CircuitBreaker, createQueue, RedisBreakerStore } from '@wise/queue';
 import { buildWorkerMeta } from './meta.js';
 import { processCampaign } from './processors/campaignProcessing.js';
 import { processContactImport } from './processors/contactImport.js';
@@ -89,12 +89,15 @@ async function main() {
     logger.error({ jobId: job?.id, err: err.message }, 'Job de campanha falhou');
   });
 
+  // Circuit breaker por número, com estado compartilhado em Redis (spec §28).
+  const breaker = new CircuitBreaker(new RedisBreakerStore(connection));
+
   // Worker de envio de mensagens (chama a Meta via adapter).
   const messageWorker = createWorker(
     QUEUE_NAMES.messageSend,
     async (job) => {
       const { messageId } = job.data;
-      const result = await processMessageSend(prisma, meta, messageId);
+      const result = await processMessageSend(prisma, meta, messageId, breaker);
       logger.info({ messageId, ...result }, 'Mensagem processada');
       return result;
     },

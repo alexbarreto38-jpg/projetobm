@@ -19,6 +19,7 @@ import { registerMetaRoutes } from './modules/meta/routes.js';
 import { registerCampaignRoutes } from './modules/campaigns/routes.js';
 import { registerContactRoutes } from './modules/contacts/routes.js';
 import { registerOrganizationRoutes } from './modules/organizations/routes.js';
+import { registerReportRoutes } from './modules/reports/routes.js';
 import { registerTemplateRoutes } from './modules/templates/routes.js';
 import { registerWebhookRoutes } from './modules/webhooks/routes.js';
 import type {
@@ -145,6 +146,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       await registerTemplateRoutes(instance, config);
       await registerContactRoutes(instance, config);
       await registerCampaignRoutes(instance, config);
+      await registerReportRoutes(instance, config);
       if (config.meta) {
         await registerMetaRoutes(instance, config, config.meta);
       }

@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import type { PrismaClient } from '@wise/database';
 import { CredentialVault, MetaMockServer, MetaProvider } from '@wise/meta-provider';
+import { CircuitBreaker, InMemoryBreakerStore } from '@wise/queue';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import type { WorkerMeta } from '../meta.js';
 import { processMessageSend } from '../processors/messageSend.js';
@@ -94,6 +95,18 @@ describe.skipIf(!hasDb)('processMessageSend', () => {
     const second = await processMessageSend(prisma, makeMeta(server), message.id);
     expect(second.skipped).toBe(true);
     expect(server.calls.length).toBe(callsAfterFirst);
+  });
+
+  it('circuit breaker aberto adia o envio (retryable) sem chamar a Meta (§28)', async () => {
+    const server = new MetaMockServer();
+    const { chain, message } = await seedMessage();
+    const breaker = new CircuitBreaker(new InMemoryBreakerStore(), { failureThreshold: 1 });
+    await breaker.recordFailure(chain.phone.id); // abre o breaker para o número
+
+    await expect(processMessageSend(prisma, makeMeta(server), message.id, breaker)).rejects.toThrow();
+    expect(server.calls.some((c) => c.url.includes('/messages'))).toBe(false);
+    const updated = await prisma.message.findUnique({ where: { id: message.id } });
+    expect(updated?.status).toBe('QUEUED'); // permanece na fila para retry
   });
 
   it('restrição da plataforma: PAUSA o número e cria alerta, sem redirecionar (§25)', async () => {

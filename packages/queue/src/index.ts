@@ -4,6 +4,15 @@ import { DEFAULT_JOB_OPTIONS, QUEUE_NAMES, type JobPayloads, type QueueName } fr
 
 export { QUEUE_NAMES, DEFAULT_JOB_OPTIONS, createRedisConnection };
 export type { QueueName, JobPayloads };
+export {
+  CircuitBreaker,
+  InMemoryBreakerStore,
+  RedisBreakerStore,
+  type CircuitState,
+  type BreakerStore,
+  type BreakerRecord,
+  type CircuitBreakerOptions,
+} from './circuitBreaker.js';
 
 /** Cria uma fila tipada. */
 export function createQueue<N extends QueueName>(
