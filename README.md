@@ -35,14 +35,21 @@ Business Platform**, usando **exclusivamente** APIs e fluxos **oficiais da Meta*
   dedupe por (org, telefone), consentimento/opt-in, opt-out, e **import de CSV
   em background por streaming/batches** com contadores de progresso
   (importados/duplicados/inválidos/opt-out)
-- ✅ **85 testes** (unitários + integração contra Postgres real + round-trip real
+- ✅ **Campanhas + envio (Fases 7–8):** criação com alvos, `CampaignPreflightService`
+  (READY/WARNING/BLOCKED — §24), `CampaignRouter` que distribui destinatários entre
+  números autorizados e não pausados (registrando qual ativo envia cada mensagem,
+  §53) com chave de duplicidade (§54), e workers de geração e envio de mensagens
+  (idempotentes; pausa o número em restrição da plataforma, §25)
+- ✅ **99 testes** (unitários + integração contra Postgres real + round-trip real
   de BullMQ/Redis): vault, webhook, erros Meta, senha, sessão, autorização,
-  isolamento multi-tenant, RBAC, conexão Meta, webhooks, templates (ciclo
-  submissão→aprovação), telefone, contatos e importação
+  isolamento multi-tenant, RBAC, conexão Meta, webhooks, templates, telefone,
+  contatos/importação, campanhas/preflight, roteamento e envio
 - ✅ CI (serviços Postgres + Redis, migrate, lint, typecheck, test, build)
 
-Próximo: `apps/web` (painel Next.js) consumindo a API; campanhas + preflight
-(§24) + CampaignRouter; envio via workers (`docs/architecture/overview.md`).
+Fluxo mínimo de produção (§72) coberto de ponta a ponta contra mock: conectar →
+descobrir → template → replicar → aprovar → importar contatos → campanha →
+preflight → fila → envio → webhook. Próximo: painel `apps/web`, circuit breaker
+(§28), health check (§29) e relatórios (§32) — ver `docs/architecture/overview.md`.
 
 ## Stack
 

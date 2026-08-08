@@ -27,7 +27,8 @@ Os seis primeiros nunca são sacrificados por velocidade.
 apps/
   api/       Fastify + TS — auth, organizations, RBAC, conexão Meta, webhooks    ✅
   web/       Next.js + React + TS + Tailwind + shadcn/ui (painel)                 ⚪ próximo
-  worker/    BullMQ workers — webhook-processing, meta-template-deployment, contact-import  ✅
+  worker/    BullMQ workers — webhook-processing, meta-template-deployment, contact-import,
+             campaign-processing, message-send                                             ✅
 packages/
   database/       Prisma schema + client + migrations (@wise/database)      ✅
   meta-provider/  Camada Meta: MetaGraphClient, adapters, CredentialVault (@wise/meta-provider)  ✅
@@ -103,8 +104,8 @@ Ver `docs/meta/account-model-2026.md`. Resumo:
 | 4 | Webhooks: endpoint, storage, fila de processamento | 🟢 endpoint + fila + worker prontos |
 | 5 | Templates, deployments, Bulk Template Manager | 🟢 CRUD + replicação + submissão prontos |
 | 6 | Contatos, import CSV, opt-in/opt-out | 🟢 CRUD + consentimento + opt-out + import por streaming |
-| 7 | Campanhas, Preflight, CampaignRouter | ⚪ |
-| 8 | Fila de mensagens, workers, retry, idempotência, breaker | ⚪ |
+| 7 | Campanhas, Preflight, CampaignRouter | 🟢 CRUD + preflight + roteamento + geração de mensagens |
+| 8 | Fila de mensagens, workers, retry, idempotência, breaker | 🟡 envio + idempotência + pausa por restrição (falta circuit breaker) |
 | 9 | Relatórios, dashboard, auditoria, alertas | ⚪ |
 | 10 | Novo account model 2026 conforme disponibilidade oficial | ⚪ |
 

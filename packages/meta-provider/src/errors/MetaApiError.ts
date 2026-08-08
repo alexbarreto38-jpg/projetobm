@@ -139,14 +139,18 @@ function classify(
   code?: number,
   _subcode?: number,
 ): MetaErrorCategory {
+  // Classificação por código específico tem precedência sobre o status HTTP.
+  // Faixas conhecidas (confirmar na doc oficial de error codes antes de produção).
+  if (code === 190) return 'AUTH'; // token expirado/inválido
+  if (code === 4 || code === 80007 || code === 130429 || code === 131048) return 'RATE_LIMIT';
+  // Restrições de conta/número (bloqueio, política, elegibilidade) — spec §25.
+  if (code === 131031 || code === 368 || code === 131042 || code === 131052) return 'ACCOUNT_STATE';
+  if (code === 10 || code === 200 || code === 299) return 'PERMISSION';
+
   if (httpStatus === 429) return 'RATE_LIMIT';
   if (httpStatus >= 500) return 'TRANSIENT';
   if (httpStatus === 401) return 'AUTH';
   if (httpStatus === 403) return 'PERMISSION';
-  // Faixas conhecidas de rate limit da Graph API (confirmar na doc oficial).
-  if (code === 4 || code === 80007 || code === 130429 || code === 131048) return 'RATE_LIMIT';
-  if (code === 190) return 'AUTH'; // token expirado/inválido
-  if (code === 10 || code === 200 || code === 299) return 'PERMISSION';
   if (httpStatus >= 400 && httpStatus < 500) return 'VALIDATION';
   return 'UNKNOWN';
 }

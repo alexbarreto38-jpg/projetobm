@@ -1,6 +1,8 @@
 import { createQueue, createRedisConnection, QUEUE_NAMES, type Queue } from '@wise/queue';
 import type {
+  CampaignProcessingEnqueuer,
   ContactImportEnqueuer,
+  MessageSendEnqueuer,
   TemplateDeploymentEnqueuer,
   WebhookEnqueuer,
 } from './enqueuer.js';
@@ -51,5 +53,25 @@ export class BullMqContactImportEnqueuer implements ContactImportEnqueuer {
 
   async enqueue(contactImportId: string): Promise<void> {
     await this.queue.add('import', { contactImportId }, { jobId: `import_${contactImportId}` });
+  }
+}
+
+export class BullMqCampaignProcessingEnqueuer implements CampaignProcessingEnqueuer {
+  private readonly queue: Queue<{ campaignId: string }>;
+  constructor(redisUrl: string) {
+    this.queue = createQueue(QUEUE_NAMES.campaignProcessing, createRedisConnection(redisUrl));
+  }
+  async enqueue(campaignId: string): Promise<void> {
+    await this.queue.add('process', { campaignId }, { jobId: `campaign_${campaignId}` });
+  }
+}
+
+export class BullMqMessageSendEnqueuer implements MessageSendEnqueuer {
+  private readonly queue: Queue<{ messageId: string }>;
+  constructor(redisUrl: string) {
+    this.queue = createQueue(QUEUE_NAMES.messageSend, createRedisConnection(redisUrl));
+  }
+  async enqueue(messageId: string): Promise<void> {
+    await this.queue.add('send', { messageId }, { jobId: `message_${messageId}` });
   }
 }

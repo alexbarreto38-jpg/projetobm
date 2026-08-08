@@ -45,6 +45,7 @@ export class MetaMockServer {
   private wabas: Map<string, MockWaba>;
   private exchangedToken: string;
   private failOn: Record<string, MockErrorSpec>;
+  private messageCounter = 0;
   readonly calls: { method: string; url: string }[] = [];
 
   constructor(options: MetaMockOptions = {}) {
@@ -72,6 +73,15 @@ export class MetaMockServer {
     // POST /{waba}/subscribed_apps
     if (method === 'POST' && path.endsWith('/subscribed_apps')) {
       return this.json(200, { success: true });
+    }
+
+    // POST /{phone-number-id}/messages — envio de mensagem.
+    if (method === 'POST' && path.endsWith('/messages')) {
+      this.messageCounter += 1;
+      return this.json(200, {
+        messaging_product: 'whatsapp',
+        messages: [{ id: `wamid.MOCK${this.messageCounter}` }],
+      });
     }
 
     // POST /{waba}/message_templates — criação de template.

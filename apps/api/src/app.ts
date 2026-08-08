@@ -16,11 +16,13 @@ import { AppError, unauthorized } from './lib/errors.js';
 import type { MetaContext } from './meta/context.js';
 import { registerAuthRoutes } from './modules/auth/routes.js';
 import { registerMetaRoutes } from './modules/meta/routes.js';
+import { registerCampaignRoutes } from './modules/campaigns/routes.js';
 import { registerContactRoutes } from './modules/contacts/routes.js';
 import { registerOrganizationRoutes } from './modules/organizations/routes.js';
 import { registerTemplateRoutes } from './modules/templates/routes.js';
 import { registerWebhookRoutes } from './modules/webhooks/routes.js';
 import type {
+  CampaignProcessingEnqueuer,
   ContactImportEnqueuer,
   TemplateDeploymentEnqueuer,
   WebhookEnqueuer,
@@ -44,6 +46,8 @@ export interface AppConfig {
   templateDeploymentEnqueuer?: TemplateDeploymentEnqueuer;
   /** Enfileirador de importações de contatos. */
   contactImportEnqueuer?: ContactImportEnqueuer;
+  /** Enfileirador de processamento de campanhas. */
+  campaignProcessingEnqueuer?: CampaignProcessingEnqueuer;
 }
 
 declare module 'fastify' {
@@ -140,6 +144,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       await registerOrganizationRoutes(instance, config);
       await registerTemplateRoutes(instance, config);
       await registerContactRoutes(instance, config);
+      await registerCampaignRoutes(instance, config);
       if (config.meta) {
         await registerMetaRoutes(instance, config, config.meta);
       }

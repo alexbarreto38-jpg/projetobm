@@ -23,6 +23,23 @@ nunca é sobrescrito (`message_events`).
 - Antes de gerar qualquer mensagem: verificar **opt-out** (spec §22) e
   **consentimento** quando exigido (spec §21).
 
+## Implementação atual (Fases 7–8)
+
+- **Campanha** (`apps/api`): `CampaignService` (criar/listar/iniciar/pausar/cancelar)
+  + `CampaignPreflightService` (§24) que retorna `READY/WARNING/BLOCKED` checando
+  conexão, conta, número, template aprovado, idioma, consentimento, opt-out e
+  público elegível. `BLOCKED` nunca inicia; `WARNING` exige confirmação.
+- **Processamento** (`apps/worker` `processCampaign` = CampaignRouter): resolve o
+  público elegível (exclui opt-out; MARKETING exige opt-in), distribui os
+  destinatários entre os números **não pausados** das contas com deployment
+  APPROVED (round-robin), registra por destinatário qual ativo envia (§53), aplica
+  `dedupeKey` (§54) e gera `Message` (QUEUED) idempotente, enfileirando o envio.
+- **Envio** (`apps/worker` `processMessageSend`): salvaguardas antes de enviar
+  (opt-out §22, número pausado §25); envia via `adapter.sendMessage`, grava o
+  `wamid` + `SENT`. Em restrição da plataforma (`ACCOUNT_STATE`) **pausa o número**
+  e cria alerta — nunca redireciona (§25). Idempotente por mensagem; transitórios
+  retentam pela fila (§27). Delivered/read/failed chegam por webhook (Fase 4).
+
 ## Compliance de roteamento (spec §25)
 
 O `CampaignRouter` distribui envio entre números **autorizados** da organização.

@@ -16,3 +16,13 @@ export interface TemplateDeploymentEnqueuer {
 export interface ContactImportEnqueuer {
   enqueue(contactImportId: string): Promise<void>;
 }
+
+/** Enfileira o processamento de uma campanha (fila campaign-processing). */
+export interface CampaignProcessingEnqueuer {
+  enqueue(campaignId: string): Promise<void>;
+}
+
+/** Enfileira o envio de uma mensagem (fila message-send). */
+export interface MessageSendEnqueuer {
+  enqueue(messageId: string): Promise<void>;
+}

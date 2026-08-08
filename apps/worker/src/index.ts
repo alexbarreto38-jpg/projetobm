@@ -1,8 +1,11 @@
 import { prisma } from '@wise/database';
 import { logger } from '@wise/logger';
 import { createRedisConnection, createWorker, QUEUE_NAMES } from '@wise/queue';
+import { createQueue } from '@wise/queue';
 import { buildWorkerMeta } from './meta.js';
+import { processCampaign } from './processors/campaignProcessing.js';
 import { processContactImport } from './processors/contactImport.js';
+import { processMessageSend } from './processors/messageSend.js';
 import { processTemplateDeployment } from './processors/templateDeployment.js';
 import { processWebhookEvent } from './processors/webhook.js';
 
@@ -63,8 +66,46 @@ async function main() {
     logger.error({ jobId: job?.id, err: err.message }, 'Job de importação falhou');
   });
 
+  // Fila de envio: o processamento de campanha enfileira 1 job por mensagem.
+  const messageSendQueue = createQueue(QUEUE_NAMES.messageSend, connection);
+  const messageEnqueuer = {
+    enqueue: async (messageId: string) => {
+      await messageSendQueue.add('send', { messageId }, { jobId: `message_${messageId}` });
+    },
+  };
+
+  // Worker de processamento de campanhas (gera destinatários + mensagens).
+  const campaignWorker = createWorker(
+    QUEUE_NAMES.campaignProcessing,
+    async (job) => {
+      const { campaignId } = job.data;
+      const result = await processCampaign(prisma, campaignId, messageEnqueuer);
+      logger.info({ campaignId, ...result }, 'Campanha processada');
+      return result;
+    },
+    connection,
+  );
+  campaignWorker.on('failed', (job, err) => {
+    logger.error({ jobId: job?.id, err: err.message }, 'Job de campanha falhou');
+  });
+
+  // Worker de envio de mensagens (chama a Meta via adapter).
+  const messageWorker = createWorker(
+    QUEUE_NAMES.messageSend,
+    async (job) => {
+      const { messageId } = job.data;
+      const result = await processMessageSend(prisma, meta, messageId);
+      logger.info({ messageId, ...result }, 'Mensagem processada');
+      return result;
+    },
+    connection,
+  );
+  messageWorker.on('failed', (job, err) => {
+    logger.error({ jobId: job?.id, err: err.message }, 'Job de envio falhou');
+  });
+
   logger.info(
-    'Workers iniciados: webhook-processing, meta-template-deployment, contact-import',
+    'Workers iniciados: webhook-processing, meta-template-deployment, contact-import, campaign-processing, message-send',
   );
 
   const shutdown = async () => {
@@ -72,6 +113,9 @@ async function main() {
     await webhookWorker.close();
     await deploymentWorker.close();
     await importWorker.close();
+    await campaignWorker.close();
+    await messageWorker.close();
+    await messageSendQueue.close();
     await connection.quit();
     await prisma.$disconnect();
     process.exit(0);
