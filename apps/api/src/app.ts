@@ -15,6 +15,7 @@ import { ZodError } from 'zod';
 import { buildAuthContext } from './context.js';
 import { AppError, unauthorized } from './lib/errors.js';
 import type { MetaContext } from './meta/context.js';
+import { createMetrics } from './metrics.js';
 import { registerAuthRoutes } from './modules/auth/routes.js';
 import { registerMetaRoutes } from './modules/meta/routes.js';
 import { registerCampaignRoutes } from './modules/campaigns/routes.js';
@@ -145,6 +146,20 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   });
 
   app.get('/health', async () => ({ status: 'ok' }));
+
+  // Métricas Prometheus (opcionalmente protegidas por METRICS_TOKEN). Restrinja
+  // o acesso a esta rota na rede (ex.: apenas o Prometheus interno).
+  const metrics = createMetrics(config.prisma);
+  app.get('/metrics', async (request, reply) => {
+    const token = process.env.METRICS_TOKEN;
+    if (token) {
+      const auth = request.headers.authorization;
+      if (auth !== `Bearer ${token}`) return reply.status(401).send('unauthorized');
+    }
+    await metrics.refresh();
+    reply.header('content-type', metrics.registry.contentType);
+    return reply.send(await metrics.registry.metrics());
+  });
 
   await app.register(
     async (instance) => {

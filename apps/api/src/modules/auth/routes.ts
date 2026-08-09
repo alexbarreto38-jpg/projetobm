@@ -12,7 +12,10 @@ export async function registerAuthRoutes(app: FastifyInstance, config: AppConfig
   const service = new AuthService(config.prisma);
   const secure = config.secureCookies ?? true;
 
-  app.post('/auth/signup', async (request, reply) => {
+  // Limite mais estrito nas rotas de credencial (anti brute-force — spec §47).
+  const authLimit = { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } };
+
+  app.post('/auth/signup', authLimit, async (request, reply) => {
     const input = signupSchema.parse(request.body);
     const payload = await service.register(input);
     const token = await createSessionToken(payload, { secret: config.authSecret });
@@ -20,7 +23,7 @@ export async function registerAuthRoutes(app: FastifyInstance, config: AppConfig
     return reply.status(201).send({ user: { id: payload.sub, email: payload.email } });
   });
 
-  app.post('/auth/login', async (request, reply) => {
+  app.post('/auth/login', authLimit, async (request, reply) => {
     const input = loginSchema.parse(request.body);
     const payload = await service.login(input);
     const token = await createSessionToken(payload, { secret: config.authSecret });

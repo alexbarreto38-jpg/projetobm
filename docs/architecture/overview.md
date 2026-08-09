@@ -141,6 +141,17 @@ Ver `docs/meta/account-model-2026.md`. Resumo:
   registro→dashboard→criar template. Roda via `pnpm test:e2e` contra a stack
   (usa o Chromium pré-instalado; `PW_CHROMIUM_PATH`), fora do `pnpm test` unitário.
 
+## Observabilidade & hardening (produção)
+
+- **Métricas Prometheus:** a API expõe `GET /metrics` (processo + gauges de
+  mensagens por status, alertas abertos e dead-letter pendente), opcionalmente
+  protegido por `METRICS_TOKEN`.
+- **Rate limit de credenciais:** `/api/auth/{login,signup}` com limite estrito
+  (10/min) além do global — anti brute-force (spec §47).
+- **Cabeçalhos de segurança no painel:** CSP, `X-Frame-Options: DENY`,
+  `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` e HSTS em
+  produção (spec §47).
+
 ## Critério de "pronto" (spec §76)
 
 Uma feature só está pronta com: frontend · backend · validação · autorização ·
