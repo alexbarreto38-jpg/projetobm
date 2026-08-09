@@ -48,3 +48,15 @@ Aponte o webhook do app da Meta para:
 
 Nunca comite segredos. Rotação de `ENCRYPTION_KEY` é suportada via
 `ENCRYPTION_KEY_PREVIOUS` (o CredentialVault decifra credenciais antigas).
+
+## 6. Deploy automático (GitHub Actions)
+O workflow `.github/workflows/deploy.yml` dispara o deploy ao dar push na `main`.
+Basta colar **dois secrets** no GitHub (Settings → Secrets and variables →
+Actions):
+
+- `RENDER_DEPLOY_HOOK_URL` — Render → serviço → Settings → **Deploy Hook**.
+- `VERCEL_DEPLOY_HOOK_URL` — Vercel → projeto → Settings → Git → **Deploy Hooks**.
+
+Sem os secrets, o workflow apenas registra que não há hooks e não falha. Render e
+Vercel também podem fazer auto-deploy nativo por Git — o workflow é só um gatilho
+explícito/opcional.
