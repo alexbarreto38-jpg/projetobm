@@ -19,7 +19,9 @@ services:
     dockerfilePath: ./Dockerfile
     dockerContext: .
     dockerCommand: sh -c "pnpm --filter @wise/database db:deploy && pnpm --filter @wise/api start"
-    healthCheckPath: /health
+    # Readiness: só considera o deploy saudável quando Postgres (e Redis) estão
+    # alcançáveis. Liveness simples fica em /health.
+    healthCheckPath: /ready
     envVars:
       - key: NODE_ENV
         value: production

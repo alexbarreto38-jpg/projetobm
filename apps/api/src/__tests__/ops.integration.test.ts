@@ -10,6 +10,64 @@ describe.skipIf(!hasDb)('ops: métricas e rate limit', () => {
     await prisma.$disconnect();
   });
 
+  it('/health é liveness simples (200 sem tocar dependências)', async () => {
+    const app = await buildApp({
+      prisma,
+      authSecret: TEST_AUTH_SECRET,
+      secureCookies: false,
+      enableRateLimit: false,
+    });
+    const res = await app.inject({ method: 'GET', url: '/health' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ status: 'ok' });
+    await app.close();
+  });
+
+  it('/ready confirma Postgres up e reporta Redis como skipped quando ausente', async () => {
+    const app = await buildApp({
+      prisma,
+      authSecret: TEST_AUTH_SECRET,
+      secureCookies: false,
+      enableRateLimit: false,
+    });
+    const res = await app.inject({ method: 'GET', url: '/ready' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ status: 'ready', checks: { db: 'up', redis: 'skipped' } });
+    await app.close();
+  });
+
+  it('/ready retorna 503 quando o Redis está down', async () => {
+    const app = await buildApp({
+      prisma,
+      authSecret: TEST_AUTH_SECRET,
+      secureCookies: false,
+      enableRateLimit: false,
+      checkRedis: async () => {
+        throw new Error('redis unreachable');
+      },
+    });
+    const res = await app.inject({ method: 'GET', url: '/ready' });
+    expect(res.statusCode).toBe(503);
+    expect(res.json()).toMatchObject({ status: 'unready', checks: { db: 'up', redis: 'down' } });
+    await app.close();
+  });
+
+  it('/ready vira 503 (não trava) quando a checagem de Redis não responde', async () => {
+    const app = await buildApp({
+      prisma,
+      authSecret: TEST_AUTH_SECRET,
+      secureCookies: false,
+      enableRateLimit: false,
+      // Simula Redis reconectando: a promise nunca resolve — o timeout do /ready
+      // deve garantir 503 rápido em vez de pendurar o probe.
+      checkRedis: () => new Promise<void>(() => {}),
+    });
+    const res = await app.inject({ method: 'GET', url: '/ready' });
+    expect(res.statusCode).toBe(503);
+    expect(res.json()).toMatchObject({ checks: { redis: 'down' } });
+    await app.close();
+  }, 10_000);
+
   it('/metrics expõe métricas Prometheus (processo + app)', async () => {
     const app = await buildApp({
       prisma,

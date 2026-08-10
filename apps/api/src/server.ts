@@ -56,14 +56,19 @@ async function main() {
   let campaignProcessingEnqueuer: CampaignProcessingEnqueuer | undefined;
   let messageSendEnqueuer: MessageSendEnqueuer | undefined;
   let queueMetrics: (() => Promise<Record<string, Record<string, number>>>) | undefined;
+  let checkRedis: (() => Promise<void>) | undefined;
   if (env.REDIS_URL) {
     webhookEnqueuer = new BullMqWebhookEnqueuer(env.REDIS_URL);
     templateDeploymentEnqueuer = new BullMqTemplateDeploymentEnqueuer(env.REDIS_URL);
     contactImportEnqueuer = new BullMqContactImportEnqueuer(env.REDIS_URL);
     campaignProcessingEnqueuer = new BullMqCampaignProcessingEnqueuer(env.REDIS_URL);
     messageSendEnqueuer = new BullMqMessageSendEnqueuer(env.REDIS_URL);
-    const counters = createQueueCounters(createRedisConnection(env.REDIS_URL));
+    const connection = createRedisConnection(env.REDIS_URL);
+    const counters = createQueueCounters(connection);
     queueMetrics = () => counters.getCounts();
+    checkRedis = async () => {
+      await connection.ping();
+    };
   } else {
     logger.warn('REDIS_URL ausente — jobs não serão enfileirados.');
   }
@@ -83,6 +88,7 @@ async function main() {
     campaignProcessingEnqueuer,
     messageSendEnqueuer,
     queueMetrics,
+    checkRedis,
   });
 
   const port = env.API_PORT ?? 3001;

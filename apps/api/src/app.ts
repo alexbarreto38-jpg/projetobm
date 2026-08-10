@@ -59,6 +59,11 @@ export interface AppConfig {
   messageSendEnqueuer?: MessageSendEnqueuer;
   /** Provedor de contagens de fila (BullMQ) para o /metrics. */
   queueMetrics?: QueueCounts;
+  /**
+   * Ping do Redis para a readiness (/ready). Quando ausente (ex.: sem Redis
+   * nesta instância), a checagem de Redis é reportada como "skipped".
+   */
+  checkRedis?: () => Promise<void>;
 }
 
 declare module 'fastify' {
@@ -148,7 +153,40 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       .send({ error: { code: 'INTERNAL', message: 'Erro interno.' } });
   });
 
+  // Liveness: o processo está de pé e respondendo. Não toca em dependências —
+  // usado pelo orquestrador para reiniciar um processo travado.
   app.get('/health', async () => ({ status: 'ok' }));
+
+  // Readiness: verifica de fato as dependências (Postgres e, se houver, Redis).
+  // 200 quando tudo up; 503 quando alguma dependência falha — assim o
+  // orquestrador não roteia tráfego para uma instância que não consegue servir.
+  app.get('/ready', async (_request, reply) => {
+    // Cada checagem é limitada por um timeout: uma dependência lenta/indisponível
+    // (ex.: Redis que fica reconectando) deve virar 503 rápido, nunca travar o probe.
+    const withTimeout = (p: Promise<unknown>, ms = 2000) =>
+      Promise.race([
+        p,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+      ]);
+
+    const checks: Record<string, 'up' | 'down' | 'skipped'> = { db: 'down', redis: 'skipped' };
+    try {
+      await withTimeout(config.prisma.$queryRaw`SELECT 1`);
+      checks.db = 'up';
+    } catch {
+      checks.db = 'down';
+    }
+    if (config.checkRedis) {
+      try {
+        await withTimeout(config.checkRedis());
+        checks.redis = 'up';
+      } catch {
+        checks.redis = 'down';
+      }
+    }
+    const ready = checks.db === 'up' && checks.redis !== 'down';
+    return reply.status(ready ? 200 : 503).send({ status: ready ? 'ready' : 'unready', checks });
+  });
 
   // Métricas Prometheus (opcionalmente protegidas por METRICS_TOKEN). Restrinja
   // o acesso a esta rota na rede (ex.: apenas o Prometheus interno).

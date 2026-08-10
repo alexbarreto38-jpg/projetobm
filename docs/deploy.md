@@ -19,7 +19,13 @@ O `render.yaml` na raiz define `wise-api` (web service Docker) e `wise-worker`
 2. Preencha os segredos `sync: false`: `ENCRYPTION_KEY` (`openssl rand -base64
    32`), `META_APP_ID`, `META_APP_SECRET`, `META_CONFIG_ID`,
    `META_WEBHOOK_VERIFY_TOKEN`, `META_REDIRECT_URI`.
-3. A API roda `prisma migrate deploy` no start e responde em `/health`.
+3. A API roda `prisma migrate deploy` no start. Health checks:
+   - `/health` — **liveness**: 200 se o processo está de pé (não toca em
+     dependências). Bom para reiniciar processos travados.
+   - `/ready` — **readiness**: verifica Postgres (e Redis, se configurado). 200
+     quando tudo up, 503 se alguma dependência falha. O `render.yaml` usa
+     `/ready` como `healthCheckPath` para não rotear tráfego antes de o serviço
+     conseguir servir de fato.
 
 Alternativas (Railway/VPS): use a mesma imagem do `Dockerfile`, com os comandos:
 - API: `pnpm --filter @wise/database db:deploy && pnpm --filter @wise/api start`
