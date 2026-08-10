@@ -144,8 +144,10 @@ Ver `docs/meta/account-model-2026.md`. Resumo:
 ## Observabilidade & hardening (produção)
 
 - **Métricas Prometheus:** a API expõe `GET /metrics` (processo + gauges de
-  mensagens por status, alertas abertos e dead-letter pendente), opcionalmente
-  protegido por `METRICS_TOKEN`.
+  mensagens por status, alertas abertos, dead-letter pendente e **jobs por fila/
+  estado do BullMQ** lidos do Redis), opcionalmente protegido por `METRICS_TOKEN`.
+- **Auditoria (§33, §35):** `AuditService` + `GET /organizations/:id/audit`
+  (permissão `audit:read`) e a tela `/audit` no painel.
 - **Rate limit de credenciais:** `/api/auth/{login,signup}` com limite estrito
   (10/min) além do global — anti brute-force (spec §47).
 - **Cabeçalhos de segurança no painel:** CSP, `X-Frame-Options: DENY`,

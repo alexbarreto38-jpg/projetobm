@@ -45,3 +45,28 @@ export function createWorker<N extends QueueName>(
 
 export { Queue, Worker };
 export type { ConnectionOptions };
+
+/**
+ * Provedor de contagens por fila (para métricas). Cria uma Queue por nome e
+ * expõe getCounts(); reutilize a mesma instância (não crie por scrape).
+ */
+export function createQueueCounters(connection: ConnectionOptions) {
+  const queues = Object.values(QUEUE_NAMES).map((name) => ({
+    name,
+    queue: new Queue(name, { connection }),
+  }));
+  return {
+    async getCounts(): Promise<Record<string, Record<string, number>>> {
+      const out: Record<string, Record<string, number>> = {};
+      await Promise.all(
+        queues.map(async ({ name, queue }) => {
+          out[name] = (await queue.getJobCounts()) as Record<string, number>;
+        }),
+      );
+      return out;
+    },
+    async close(): Promise<void> {
+      await Promise.all(queues.map(({ queue }) => queue.close()));
+    },
+  };
+}

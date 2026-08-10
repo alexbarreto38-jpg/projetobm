@@ -2,6 +2,7 @@ import { prisma } from '@wise/database';
 import { captureException, initSentry, logger } from '@wise/logger';
 import { buildApp } from './app.js';
 import { buildMetaContext, type MetaContext } from './meta/context.js';
+import { createRedisConnection, createQueueCounters } from '@wise/queue';
 import {
   BullMqCampaignProcessingEnqueuer,
   BullMqContactImportEnqueuer,
@@ -53,12 +54,15 @@ async function main() {
   let contactImportEnqueuer: ContactImportEnqueuer | undefined;
   let campaignProcessingEnqueuer: CampaignProcessingEnqueuer | undefined;
   let messageSendEnqueuer: MessageSendEnqueuer | undefined;
+  let queueMetrics: (() => Promise<Record<string, Record<string, number>>>) | undefined;
   if (process.env.REDIS_URL) {
     webhookEnqueuer = new BullMqWebhookEnqueuer(process.env.REDIS_URL);
     templateDeploymentEnqueuer = new BullMqTemplateDeploymentEnqueuer(process.env.REDIS_URL);
     contactImportEnqueuer = new BullMqContactImportEnqueuer(process.env.REDIS_URL);
     campaignProcessingEnqueuer = new BullMqCampaignProcessingEnqueuer(process.env.REDIS_URL);
     messageSendEnqueuer = new BullMqMessageSendEnqueuer(process.env.REDIS_URL);
+    const counters = createQueueCounters(createRedisConnection(process.env.REDIS_URL));
+    queueMetrics = () => counters.getCounts();
   } else {
     logger.warn('REDIS_URL ausente — jobs não serão enfileirados.');
   }
@@ -80,6 +84,7 @@ async function main() {
     contactImportEnqueuer,
     campaignProcessingEnqueuer,
     messageSendEnqueuer,
+    queueMetrics,
   });
 
   const port = Number(process.env.API_PORT ?? 3001);

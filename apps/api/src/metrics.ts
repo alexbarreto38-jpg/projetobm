@@ -6,7 +6,9 @@ import { collectDefaultMetrics, Gauge, Registry } from 'prom-client';
  * + alguns indicadores da aplicação atualizados a cada scrape. NÃO inclui dados
  * sensíveis (apenas contagens agregadas).
  */
-export function createMetrics(prisma: PrismaClient) {
+export type QueueCounts = () => Promise<Record<string, Record<string, number>>>;
+
+export function createMetrics(prisma: PrismaClient, queueCounts?: QueueCounts) {
   const registry = new Registry();
   collectDefaultMetrics({ register: registry });
 
@@ -26,6 +28,12 @@ export function createMetrics(prisma: PrismaClient) {
     help: 'Jobs na dead-letter ainda não resolvidos',
     registers: [registry],
   });
+  const queueJobs = new Gauge({
+    name: 'wise_queue_jobs',
+    help: 'Jobs por fila e estado (BullMQ)',
+    labelNames: ['queue', 'state'] as const,
+    registers: [registry],
+  });
 
   async function refresh() {
     const [byStatus, alerts, dlq] = await Promise.all([
@@ -37,6 +45,20 @@ export function createMetrics(prisma: PrismaClient) {
     for (const g of byStatus) messagesByStatus.set({ status: g.status }, g._count._all);
     openAlerts.set(alerts);
     deadLetters.set(dlq);
+
+    if (queueCounts) {
+      try {
+        const counts = await queueCounts();
+        queueJobs.reset();
+        for (const [queue, states] of Object.entries(counts)) {
+          for (const [state, n] of Object.entries(states)) {
+            queueJobs.set({ queue, state }, n);
+          }
+        }
+      } catch {
+        // Redis indisponível: não derruba o /metrics.
+      }
+    }
   }
 
   return { registry, refresh };

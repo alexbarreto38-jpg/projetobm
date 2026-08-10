@@ -1,6 +1,5 @@
-import type { FastifyInstance } from 'fastify';
 import type { PrismaClient } from '@wise/database';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../app.js';
 import { hasDb, makePrisma, TEST_AUTH_SECRET } from './helpers.js';
 

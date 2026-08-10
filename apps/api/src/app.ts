@@ -15,9 +15,10 @@ import { ZodError } from 'zod';
 import { buildAuthContext } from './context.js';
 import { AppError, unauthorized } from './lib/errors.js';
 import type { MetaContext } from './meta/context.js';
-import { createMetrics } from './metrics.js';
+import { createMetrics, type QueueCounts } from './metrics.js';
 import { registerAuthRoutes } from './modules/auth/routes.js';
 import { registerMetaRoutes } from './modules/meta/routes.js';
+import { registerAuditRoutes } from './modules/audit/routes.js';
 import { registerCampaignRoutes } from './modules/campaigns/routes.js';
 import { registerContactRoutes } from './modules/contacts/routes.js';
 import { registerDeadLetterRoutes } from './modules/deadletter/routes.js';
@@ -56,6 +57,8 @@ export interface AppConfig {
   campaignProcessingEnqueuer?: CampaignProcessingEnqueuer;
   /** Enfileirador de envio de mensagens (usado no requeue da dead-letter). */
   messageSendEnqueuer?: MessageSendEnqueuer;
+  /** Provedor de contagens de fila (BullMQ) para o /metrics. */
+  queueMetrics?: QueueCounts;
 }
 
 declare module 'fastify' {
@@ -149,7 +152,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
 
   // Métricas Prometheus (opcionalmente protegidas por METRICS_TOKEN). Restrinja
   // o acesso a esta rota na rede (ex.: apenas o Prometheus interno).
-  const metrics = createMetrics(config.prisma);
+  const metrics = createMetrics(config.prisma, config.queueMetrics);
   app.get('/metrics', async (request, reply) => {
     const token = process.env.METRICS_TOKEN;
     if (token) {
@@ -171,6 +174,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       await registerReportRoutes(instance, config);
       await registerDeadLetterRoutes(instance, config);
       await registerLgpdRoutes(instance, config);
+      await registerAuditRoutes(instance, config);
       if (config.meta) {
         await registerMetaRoutes(instance, config, config.meta);
       }

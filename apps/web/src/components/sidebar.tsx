@@ -7,6 +7,7 @@ import {
   Inbox,
   LayoutDashboard,
   MessageSquareText,
+  ScrollText,
   Send,
   Settings,
   Users,
@@ -26,6 +27,7 @@ const NAV = [
   { href: '/reports', label: 'Relatórios', icon: BarChart3 },
   { href: '/alerts', label: 'Alertas', icon: Bell },
   { href: '/dead-letters', label: 'Dead-letter', icon: Inbox },
+  { href: '/audit', label: 'Auditoria', icon: ScrollText },
   { href: '/settings', label: 'Configurações', icon: Settings },
 ];
 
