@@ -73,31 +73,31 @@ export function NewCampaignForm({
       </ol>
 
       <div className="rounded-xl border border-wise-border bg-wise-surface p-6">
-        {/* Passo 1: template */}
-        {step === 0 ? (
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="name">Nome da campanha</Label>
-              <Input id="name" name="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Cobrança — Maio" required />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="templateId">Template</Label>
-              <select
-                id="templateId"
-                name="templateId"
-                value={templateId}
-                onChange={(e) => setTemplateId(e.target.value)}
-                className="h-10 w-full rounded-lg border border-wise-border bg-wise-bg px-3 text-sm text-wise-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wise-yellow"
-              >
-                {templates.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} ({t.language})
-                  </option>
-                ))}
-              </select>
-            </div>
+        {/* Passo 1: nome + template. Ficam SEMPRE montados (apenas ocultos por
+            CSS fora do passo 1) para irem no submit — se forem desmontados, o
+            formData não os envia e a validação do backend falha. */}
+        <div className={step === 0 ? 'space-y-4' : 'hidden'}>
+          <div className="space-y-1.5">
+            <Label htmlFor="name">Nome da campanha</Label>
+            <Input id="name" name="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Cobrança — Maio" required />
           </div>
-        ) : null}
+          <div className="space-y-1.5">
+            <Label htmlFor="templateId">Template</Label>
+            <select
+              id="templateId"
+              name="templateId"
+              value={templateId}
+              onChange={(e) => setTemplateId(e.target.value)}
+              className="h-10 w-full rounded-lg border border-wise-border bg-wise-bg px-3 text-sm text-wise-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wise-yellow"
+            >
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name} ({t.language})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
 
         {/* Passo 2: contas (checkboxes ficam sempre montados para irem no submit) */}
         <div className={step === 1 ? 'space-y-2' : 'hidden'}>

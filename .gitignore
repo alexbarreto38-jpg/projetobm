@@ -44,3 +44,6 @@ Thumbs.db
 test-results/
 playwright-report/
 .playwright/
+
+# Redis snapshot local
+dump.rdb
