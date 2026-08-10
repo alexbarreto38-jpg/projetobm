@@ -41,6 +41,18 @@ export async function registerReportRoutes(app: FastifyInstance, config: AppConf
     },
   );
 
+  app.get<{ Params: OrgParams; Querystring: ReportQuery }>(
+    '/organizations/:id/reports/messages/export.csv',
+    async (request, reply) => {
+      const ctx = app.requireAuth(request);
+      const csv = await reports.messagesCsv(ctx, request.params.id, request.query);
+      return reply
+        .header('content-type', 'text/csv; charset=utf-8')
+        .header('content-disposition', `attachment; filename="relatorio-mensagens-${request.params.id}.csv"`)
+        .send(csv);
+    },
+  );
+
   app.get<{ Params: AccountParams }>(
     '/organizations/:id/meta/accounts/:accountId/health',
     async (request, reply) => {

@@ -32,6 +32,16 @@ export async function registerContactRoutes(app: FastifyInstance, config: AppCon
     return reply.send(await contacts.list(ctx, request.params.id, limit, cursor));
   });
 
+  // Export CSV operacional (spec §40). text/csv com attachment para download.
+  app.get<{ Params: OrgParams }>('/organizations/:id/contacts/export.csv', async (request, reply) => {
+    const ctx = app.requireAuth(request);
+    const csv = await contacts.exportCsv(ctx, request.params.id);
+    return reply
+      .header('content-type', 'text/csv; charset=utf-8')
+      .header('content-disposition', `attachment; filename="contatos-${request.params.id}.csv"`)
+      .send(csv);
+  });
+
   app.post<{ Params: OrgParams }>('/organizations/:id/contacts', async (request, reply) => {
     const ctx = app.requireAuth(request);
     const input = createContactSchema.parse(request.body);

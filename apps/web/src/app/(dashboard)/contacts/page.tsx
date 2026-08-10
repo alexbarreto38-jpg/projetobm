@@ -43,6 +43,14 @@ export default async function ContactsPage({
       <PageHeader
         title="Contatos"
         description="Contatos normalizados (E.164), com consentimento e opt-out por organização."
+        action={
+          <a
+            href="/api/export/contacts"
+            className="inline-flex h-10 items-center rounded-lg border border-wise-border px-4 text-sm text-wise-text hover:bg-wise-surface"
+          >
+            Baixar CSV
+          </a>
+        }
       />
 
       <ContactForms

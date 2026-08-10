@@ -84,6 +84,26 @@ describe.skipIf(!hasDb)('observability integration (health, reports, alerts)', (
     expect(r.rates.failure).toBeCloseTo(0.2, 3);
   });
 
+  it('exporta o relatório de mensagens em CSV (metric,value)', async () => {
+    const { cookie, orgId } = await setup('rcsv@x.com');
+    for (const [i, s] of ['SENT', 'DELIVERED', 'FAILED'].entries()) {
+      await prisma.message.create({
+        data: { organizationId: orgId, status: s as never, idempotencyKey: `mc${i}` },
+      });
+    }
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/organizations/${orgId}/reports/messages/export.csv`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/csv');
+    expect(res.headers['content-disposition']).toContain('attachment');
+    expect(res.body).toContain('metric,value');
+    expect(res.body).toContain('total,3');
+    expect(res.body).toContain('failed,1');
+  });
+
   it('health da conta reflete conexão, número e templates', async () => {
     const { cookie, orgId, accountId } = await setup('r2@x.com');
     const res = await app.inject({

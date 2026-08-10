@@ -1,5 +1,6 @@
 import { assertPermission, type AuthContext } from '@wise/auth';
 import type { Prisma, PrismaClient } from '@wise/database';
+import { toCsv } from '../../lib/csv.js';
 
 /**
  * ReportsService (spec §32). Agrega o funil de mensagens (enviadas, entregues,
@@ -83,6 +84,28 @@ export class ReportsService {
     };
 
     return { counts, rates };
+  }
+
+  /** Mesmo relatório de mensagens, serializado como CSV (metric,value). */
+  async messagesCsv(
+    ctx: AuthContext,
+    organizationId: string,
+    filters: ReportFilters = {},
+  ): Promise<string> {
+    const report = await this.messages(ctx, organizationId, filters);
+    const rows: [string, number][] = [
+      ['total', report.counts.total],
+      ['queued', report.counts.queued],
+      ['processing', report.counts.processing],
+      ['sent', report.counts.sent],
+      ['delivered', report.counts.delivered],
+      ['read', report.counts.read],
+      ['failed', report.counts.failed],
+      ['delivery_rate', report.rates.delivery],
+      ['read_rate', report.rates.read],
+      ['failure_rate', report.rates.failure],
+    ];
+    return toCsv(['metric', 'value'], rows);
   }
 }
 

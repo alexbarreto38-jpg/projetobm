@@ -112,6 +112,30 @@ describe.skipIf(!hasDb)('contacts integration', () => {
     expect(contact.consentTypes).toContain('MARKETING');
   });
 
+  it('exporta contatos em CSV (text/csv, attachment, consent e status)', async () => {
+    const { cookie, orgId } = await setup('cexp@x.com');
+    const contactId = (await createContact(cookie, orgId, '11990000010')).json().contact.id;
+    await app.inject({
+      method: 'POST',
+      url: `/api/organizations/${orgId}/contacts/${contactId}/consent`,
+      headers: { cookie },
+      payload: { consentType: 'MARKETING', source: 'site' },
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/organizations/${orgId}/contacts/export.csv`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/csv');
+    expect(res.headers['content-disposition']).toContain('attachment');
+    expect(res.body).toContain('phone,name,consent,status,created_at');
+    expect(res.body).toContain('+5511990000010');
+    expect(res.body).toContain('MARKETING');
+    expect(res.body).toContain('active');
+  });
+
   it('cria importação de CSV (202), enfileira e expõe status sem vazar o CSV', async () => {
     const { cookie, orgId } = await setup('c5@x.com');
     const csv = 'phone,name\n11990000003,Ana\n11990000004,Bruno\n';

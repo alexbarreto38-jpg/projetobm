@@ -8,6 +8,7 @@ import {
   type CountryCode,
 } from '@wise/validation';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
+import { toCsv } from '../../lib/csv.js';
 
 /**
  * ContactService (spec §20, §21, §22). Telefones normalizados para E.164 e
@@ -61,6 +62,33 @@ export class ContactService {
       })),
       nextCursor,
     };
+  }
+
+  /**
+   * Exporta todos os contatos da organização em CSV (spec §40). Somente dados
+   * operacionais do próprio tenant; nenhum segredo. Sem paginação — pensado para
+   * download pontual pelo painel.
+   */
+  async exportCsv(ctx: AuthContext, organizationId: string): Promise<string> {
+    assertPermission(ctx, organizationId, 'contact:read');
+    const contacts = await this.prisma.contact.findMany({
+      where: { organizationId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        consents: { where: { status: 'GRANTED' }, select: { consentType: true } },
+        optouts: { select: { id: true } },
+      },
+    });
+    return toCsv(
+      ['phone', 'name', 'consent', 'status', 'created_at'],
+      contacts.map((c) => [
+        c.phone,
+        c.name ?? '',
+        c.consents.map((x) => x.consentType).join('|'),
+        c.optouts.length > 0 ? 'opted_out' : 'active',
+        c.createdAt.toISOString(),
+      ]),
+    );
   }
 
   private async requireContact(organizationId: string, contactId: string) {

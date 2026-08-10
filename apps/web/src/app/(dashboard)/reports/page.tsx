@@ -61,9 +61,26 @@ export default async function ReportsPage({
   const r = repRes.data!.report;
   const campaigns = campRes.data?.campaigns ?? [];
 
+  const csvQuery = new URLSearchParams();
+  if (searchParams.from) csvQuery.set('from', searchParams.from);
+  if (searchParams.to) csvQuery.set('to', searchParams.to);
+  if (searchParams.campaignId) csvQuery.set('campaignId', searchParams.campaignId);
+  const csvHref = `/api/export/reports${csvQuery.toString() ? `?${csvQuery.toString()}` : ''}`;
+
   return (
     <div className="space-y-6">
-      <PageHeader title="Relatórios" description="Funil de mensagens e taxas de entrega, leitura e falha." />
+      <PageHeader
+        title="Relatórios"
+        description="Funil de mensagens e taxas de entrega, leitura e falha."
+        action={
+          <a
+            href={csvHref}
+            className="inline-flex h-10 items-center rounded-lg border border-wise-border px-4 text-sm text-wise-text hover:bg-wise-surface"
+          >
+            Baixar CSV
+          </a>
+        }
+      />
 
       <form method="get" className="flex flex-wrap items-end gap-3 rounded-xl border border-wise-border bg-wise-surface p-4">
         <div className="space-y-1.5">

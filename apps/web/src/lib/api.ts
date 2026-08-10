@@ -52,4 +52,16 @@ export async function api<T = unknown>(
   }
 }
 
+/**
+ * Busca crua (sem parse JSON), encaminhando o cookie de sessão. Usada para
+ * baixar CSV/arquivos via BFF — o token permanece no servidor (spec §8, §46).
+ */
+export async function apiRaw(path: string, init: RequestInit = {}): Promise<Response> {
+  return fetch(`${API_URL}${path}`, {
+    ...init,
+    headers: { ...sessionHeader(), ...(init.headers ?? {}) },
+    cache: 'no-store',
+  });
+}
+
 export { API_URL, SESSION_COOKIE };
