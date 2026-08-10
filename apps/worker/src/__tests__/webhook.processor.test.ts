@@ -148,6 +148,50 @@ describe.skipIf(!hasDb)('processWebhookEvent', () => {
     expect(dep?.status).toBe('APPROVED');
   });
 
+  it('pausa o número e alerta quando a Meta sinaliza queda de qualidade (§25)', async () => {
+    const { org, account } = await seedAccount(prisma);
+    const phone = await prisma.phoneNumber.create({
+      data: {
+        organizationId: org.id,
+        whatsappAccountId: account.id,
+        externalPhoneNumberId: 'PN_1',
+        displayPhoneNumber: '+55 11 90000-0001',
+        isPaused: false,
+      },
+    });
+
+    const event = await storeEvent({
+      entry: [
+        {
+          id: account.externalAccountId,
+          changes: [
+            {
+              field: 'phone_number_quality_update',
+              value: {
+                // formatação diferente da armazenada — casa por dígitos
+                display_phone_number: '5511900000001',
+                event: 'FLAGGED',
+                current_limit: 'TIER_1K',
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    const summary = await processWebhookEvent(prisma, event.id);
+    expect(summary.qualityProcessed).toBe(1);
+
+    const updated = await prisma.phoneNumber.findUnique({ where: { id: phone.id } });
+    expect(updated?.isPaused).toBe(true);
+
+    const alerts = await prisma.systemAlert.findMany({
+      where: { organizationId: org.id, code: 'PHONE_QUALITY_FLAGGED' },
+    });
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]!.severity).toBe('CRITICAL');
+  });
+
   it('é idempotente: reprocessar um evento PROCESSED não duplica MessageEvent', async () => {
     const { org } = await seedAccount(prisma);
     const message = await prisma.message.create({

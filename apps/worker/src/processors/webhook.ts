@@ -12,6 +12,7 @@ import { logger } from '@wise/logger';
 export interface ProcessSummary {
   statusesProcessed: number;
   templatesProcessed: number;
+  qualityProcessed: number;
   skipped: boolean;
 }
 
@@ -22,7 +23,7 @@ export async function processWebhookEvent(
   const event = await prisma.webhookEvent.findUnique({ where: { id: webhookEventId } });
   if (!event) throw new Error(`WebhookEvent ${webhookEventId} não encontrado.`);
   if (event.status === 'PROCESSED') {
-    return { statusesProcessed: 0, templatesProcessed: 0, skipped: true };
+    return { statusesProcessed: 0, templatesProcessed: 0, qualityProcessed: 0, skipped: true };
   }
 
   await prisma.webhookEvent.update({
@@ -32,6 +33,7 @@ export async function processWebhookEvent(
 
   let statusesProcessed = 0;
   let templatesProcessed = 0;
+  let qualityProcessed = 0;
 
   try {
     const payload = event.rawPayload as WhatsAppWebhookPayload;
@@ -48,6 +50,12 @@ export async function processWebhookEvent(
         if (change.field === 'message_template_status_update') {
           templatesProcessed += await applyTemplateStatus(prisma, value);
         }
+
+        // Queda de qualidade do número → PAUSA operacional (spec §25). Nunca
+        // redirecionamos nem tentamos contornar a restrição da Meta.
+        if (change.field === 'phone_number_quality_update') {
+          if (await applyPhoneQuality(prisma, entry.id, value)) qualityProcessed += 1;
+        }
       }
     }
 
@@ -55,7 +63,7 @@ export async function processWebhookEvent(
       where: { id: event.id },
       data: { status: 'PROCESSED', processedAt: new Date() },
     });
-    return { statusesProcessed, templatesProcessed, skipped: false };
+    return { statusesProcessed, templatesProcessed, qualityProcessed, skipped: false };
   } catch (err) {
     await prisma.webhookEvent.update({
       where: { id: event.id },
@@ -123,6 +131,71 @@ async function applyTemplateStatus(
   return result.count;
 }
 
+const onlyDigits = (s: string): string => s.replace(/\D/g, '');
+
+/**
+ * Reage a `phone_number_quality_update` (spec §25). Quando a Meta sinaliza que
+ * o número foi restringido (event FLAGGED), PAUSAMOS o número e abrimos um
+ * alerta CRÍTICO — a plataforma não redireciona envios nem tenta contornar a
+ * restrição. Recuperação (UNFLAGGED) NÃO reativa automaticamente: quem decide
+ * religar é o operador. Campos confirmados na doc oficial da Meta (spec §66).
+ */
+async function applyPhoneQuality(
+  prisma: PrismaClient,
+  wabaId: string | undefined,
+  value: RawChangeValue,
+): Promise<boolean> {
+  const display = value.display_phone_number;
+  const eventName = value.event;
+  if (!display || !eventName) return false;
+
+  // Escopo pela WABA (entry.id) e casa por dígitos, robusto à formatação.
+  const account = wabaId
+    ? await prisma.whatsAppAccount.findFirst({
+        where: { externalAccountId: wabaId },
+        select: { id: true },
+      })
+    : null;
+  const candidates = await prisma.phoneNumber.findMany({
+    where: {
+      displayPhoneNumber: { not: null },
+      ...(account ? { whatsappAccountId: account.id } : {}),
+    },
+    select: { id: true, organizationId: true, displayPhoneNumber: true, isPaused: true },
+  });
+  const target = onlyDigits(display);
+  const phone = candidates.find((p) => onlyDigits(p.displayPhoneNumber ?? '') === target);
+  if (!phone) {
+    logger.warn({ display, eventName }, 'Quality update sem número correspondente');
+    return false;
+  }
+
+  const restricting = eventName.toUpperCase() === 'FLAGGED';
+  await prisma.phoneNumber.update({
+    where: { id: phone.id },
+    data: {
+      ...(value.current_limit ? { messagingLimitInfo: { current_limit: value.current_limit } } : {}),
+      ...(restricting ? { isPaused: true } : {}),
+    },
+  });
+
+  // Alerta apenas na transição para pausado (evita ruído em reentregas).
+  if (restricting && !phone.isPaused) {
+    await prisma.systemAlert.create({
+      data: {
+        organizationId: phone.organizationId,
+        severity: 'CRITICAL',
+        code: 'PHONE_QUALITY_FLAGGED',
+        title: 'Número pausado por queda de qualidade (Meta).',
+        detail: `A Meta sinalizou "${eventName}" para ${display}. Envios pausados até revisão.`,
+        metadata: { phoneNumberId: phone.id, event: eventName, current_limit: value.current_limit },
+      },
+    });
+    logger.warn({ phoneNumberId: phone.id, eventName }, 'Número pausado por qualidade (spec §25)');
+  }
+  return true;
+}
+
 // --- tipos do payload (parciais; confirmar campos na doc oficial) ---------
 interface WhatsAppWebhookPayload {
   entry?: Array<{ id?: string; changes?: RawChange[] }>;
@@ -137,6 +210,9 @@ interface RawChangeValue {
   message_template_name?: string;
   event?: string;
   reason?: string;
+  // phone_number_quality_update
+  display_phone_number?: string;
+  current_limit?: string;
 }
 interface RawStatus {
   id?: string;

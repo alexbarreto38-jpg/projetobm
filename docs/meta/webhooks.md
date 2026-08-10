@@ -56,6 +56,12 @@ Meta → endpoint
   `message_template_status_update`, `phone_number_quality_update`.
   Confirmar a lista atual e novos campos do modelo 2026 na doc oficial.
 
+**Reação a `phone_number_quality_update` (spec §25).** Quando a Meta sinaliza
+`FLAGGED`, o processador **pausa** o número (`isPaused = true`) e abre um alerta
+CRÍTICO (`PHONE_QUALITY_FLAGGED`). A plataforma **não** redireciona envios nem
+tenta contornar a restrição. Recuperação (`UNFLAGGED`) **não** reativa
+automaticamente — religar é decisão do operador.
+
 ## Ver também
 - [`messages.md`](./messages.md) — eventos de status que chegam por webhook
 - [`templates.md`](./templates.md) — updates de status de template
