@@ -14,6 +14,7 @@ import { processAccountSync } from './processors/accountSync.js';
 import { processCampaign } from './processors/campaignProcessing.js';
 import { processContactImport } from './processors/contactImport.js';
 import { processMessageSend } from './processors/messageSend.js';
+import { retentionPurge } from './processors/retention.js';
 import { processTemplateDeployment } from './processors/templateDeployment.js';
 import { processWebhookEvent } from './processors/webhook.js';
 
@@ -163,6 +164,23 @@ async function main() {
   }, syncIntervalMs);
   syncTimer.unref();
 
+  // Cron de retenção LGPD (spec §44): purga dados operacionais antigos quando
+  // RETENTION_DAYS > 0. Desligado por padrão.
+  const retentionDays = Number(process.env.RETENTION_DAYS ?? 0);
+  let retentionTimer: NodeJS.Timeout | undefined;
+  if (retentionDays > 0) {
+    const intervalMs = Number(process.env.RETENTION_INTERVAL_MS ?? 24 * 60 * 60 * 1000);
+    const run = () => {
+      void retentionPurge(prisma, retentionDays).catch((err) =>
+        logger.error({ err }, 'Falha na retenção'),
+      );
+    };
+    run(); // executa uma vez no start
+    retentionTimer = setInterval(run, intervalMs);
+    retentionTimer.unref();
+    logger.info({ retentionDays }, 'Cron de retenção habilitado');
+  }
+
   logger.info(
     'Workers iniciados: webhook-processing, meta-template-deployment, contact-import, campaign-processing, message-send, account-sync',
   );
@@ -176,6 +194,7 @@ async function main() {
     await messageWorker.close();
     await syncWorker.close();
     clearInterval(syncTimer);
+    if (retentionTimer) clearInterval(retentionTimer);
     await messageSendQueue.close();
     await accountSyncQueue.close();
     await connection.quit();

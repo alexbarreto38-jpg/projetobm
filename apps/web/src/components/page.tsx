@@ -68,3 +68,34 @@ export function Th({ children }: { children: React.ReactNode }) {
 export function Td({ children }: { children: React.ReactNode }) {
   return <td className="border-b border-wise-border/50 px-4 py-3">{children}</td>;
 }
+
+/** Paginação por cursor (avançar). `hasCursor` mostra o link de voltar ao início. */
+export function Pagination({
+  basePath,
+  nextCursor,
+  hasCursor,
+}: {
+  basePath: string;
+  nextCursor?: string | null;
+  hasCursor?: boolean;
+}) {
+  if (!nextCursor && !hasCursor) return null;
+  return (
+    <div className="mt-4 flex items-center justify-between text-sm">
+      {hasCursor ? (
+        <a href={basePath} className="text-wise-muted hover:text-wise-text">
+          ← Início
+        </a>
+      ) : (
+        <span />
+      )}
+      {nextCursor ? (
+        <a href={`${basePath}?cursor=${encodeURIComponent(nextCursor)}`} className="text-wise-yellow hover:underline">
+          Próxima página →
+        </a>
+      ) : (
+        <span />
+      )}
+    </div>
+  );
+}

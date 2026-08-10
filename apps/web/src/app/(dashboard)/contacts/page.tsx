@@ -7,7 +7,7 @@ import {
 import { ContactForms } from './forms';
 import { Badge } from '@/components/ui/badge';
 import { SubmitButton } from '@/components/form';
-import { EmptyState, ErrorState, PageHeader, Table, Td, Th } from '@/components/page';
+import { EmptyState, ErrorState, PageHeader, Pagination, Table, Td, Th } from '@/components/page';
 import { api } from '@/lib/api';
 import { getOrgContext } from '@/lib/session';
 
@@ -21,12 +21,20 @@ interface Contact {
   consentTypes: string[];
 }
 
-export default async function ContactsPage() {
+export default async function ContactsPage({
+  searchParams,
+}: {
+  searchParams: { cursor?: string };
+}) {
   const ctx = await getOrgContext();
   if (!ctx?.orgId) return <ErrorState message="Nenhuma organização selecionada." />;
   const orgId = ctx.orgId;
 
-  const res = await api<{ contacts: Contact[] }>(`/api/organizations/${orgId}/contacts`);
+  const cursor = searchParams.cursor;
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+  const res = await api<{ contacts: Contact[]; nextCursor?: string | null }>(
+    `/api/organizations/${orgId}/contacts${query}`,
+  );
   if (!res.ok) return <ErrorState message={`Não foi possível carregar os contatos: ${res.error}`} />;
   const contacts = res.data?.contacts ?? [];
 
@@ -99,6 +107,8 @@ export default async function ContactsPage() {
           </tbody>
         </Table>
       )}
+
+      <Pagination basePath="/contacts" nextCursor={res.data?.nextCursor} hasCursor={!!cursor} />
     </div>
   );
 }

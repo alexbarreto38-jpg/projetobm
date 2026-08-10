@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge';
-import { EmptyState, ErrorState, PageHeader, Table, Td, Th } from '@/components/page';
+import { EmptyState, ErrorState, PageHeader, Pagination, Table, Td, Th } from '@/components/page';
 import { api } from '@/lib/api';
 import { getOrgContext } from '@/lib/session';
 
@@ -15,11 +15,19 @@ interface AuditLog {
   user?: { email?: string; name?: string };
 }
 
-export default async function AuditPage() {
+export default async function AuditPage({
+  searchParams,
+}: {
+  searchParams: { cursor?: string };
+}) {
   const ctx = await getOrgContext();
   if (!ctx?.orgId) return <ErrorState message="Nenhuma organização selecionada." />;
 
-  const res = await api<{ logs: AuditLog[] }>(`/api/organizations/${ctx.orgId}/audit`);
+  const cursor = searchParams.cursor;
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+  const res = await api<{ logs: AuditLog[]; nextCursor?: string | null }>(
+    `/api/organizations/${ctx.orgId}/audit${query}`,
+  );
   if (!res.ok) return <ErrorState message={`Não foi possível carregar a auditoria: ${res.error}`} />;
   const logs = res.data?.logs ?? [];
 
@@ -60,6 +68,8 @@ export default async function AuditPage() {
           </tbody>
         </Table>
       )}
+
+      <Pagination basePath="/audit" nextCursor={res.data?.nextCursor} hasCursor={!!cursor} />
     </div>
   );
 }
