@@ -29,6 +29,8 @@ Sources: <URLs oficiais>
 
 - `architecture.md` — objetos e relações do WhatsApp Business Platform
 - `account-model-2026.md` — evolução do modelo de contas (Legacy vs. New)
+- `setup-app.md` — criar o Meta App e coletar as credenciais (uma vez)
+- `onboarding-multi-bm.md` — o que se configura uma vez vs. por BM/cliente
 - `embedded-signup.md` — fluxo oficial de onboarding
 - `permissions.md` — permissões necessárias
 - `webhooks.md` — verificação e processamento de webhooks
