@@ -65,6 +65,11 @@ bruto dentro do request HTTP (spec §18).
 - `GET  /{waba-id}/message_templates`
 - `POST /{waba-id}/message_templates`
 
+## Ver também
+- [`messages.md`](./messages.md) — envio usando o template aprovado
+- [`webhooks.md`](./webhooks.md) — recebimento do status de aprovação
+- [`error-handling.md`](./error-handling.md) — erros de submissão da Meta
+
 ---
 
 Last verified against Meta documentation: 2026-08-08 (resultados de busca;

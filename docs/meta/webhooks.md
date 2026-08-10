@@ -56,6 +56,11 @@ Meta → endpoint
   `message_template_status_update`, `phone_number_quality_update`.
   Confirmar a lista atual e novos campos do modelo 2026 na doc oficial.
 
+## Ver também
+- [`messages.md`](./messages.md) — eventos de status que chegam por webhook
+- [`templates.md`](./templates.md) — updates de status de template
+- [`error-handling.md`](./error-handling.md) — preservação dos payloads oficiais
+
 ---
 
 Last verified against Meta documentation: 2026-08-08 (resultados de busca;

@@ -64,6 +64,12 @@ fbtrace_id` (spec §48, §49).
 > real: descoberta, cifragem do token em repouso, idempotência, RBAC,
 > isolamento multi-tenant e propagação de erro (token inválido → 401).
 
+## Ver também
+- [`setup-app.md`](./setup-app.md) — obter o Config ID e as credenciais do app
+- [`onboarding-multi-bm.md`](./onboarding-multi-bm.md) — uma vez vs. por BM
+- [`permissions.md`](./permissions.md) — permissões solicitadas no fluxo
+- [`webhooks.md`](./webhooks.md) — assinatura da WABA após conectar
+
 ---
 
 Last verified against Meta documentation: 2026-08-08 (resultados de busca;

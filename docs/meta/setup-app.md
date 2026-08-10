@@ -67,6 +67,11 @@ Preencha essas variáveis no `.env` (ou nos secrets do deploy) e remova o
 `META_GRAPH_BASE_URL` do mock (deixe o padrão `https://graph.facebook.com`). O
 botão **Conectar WhatsApp** passa a abrir o Embedded Signup real.
 
+## Ver também
+- [`onboarding-multi-bm.md`](./onboarding-multi-bm.md) — o que é config única vs. por cliente
+- [`embedded-signup.md`](./embedded-signup.md) — como cada BM se conecta
+- [`permissions.md`](./permissions.md) — permissões e App Review
+
 ---
 
 Last verified against Meta documentation: 2026-08-08 (caminhos de menu são

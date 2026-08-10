@@ -16,23 +16,26 @@ import {
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/cn';
+import { useI18n } from '@/i18n/provider';
+import type { Dictionary } from '@/i18n/config';
 
 const NAV = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/organizations', label: 'Empresas', icon: Building2 },
-  { href: '/meta/accounts', label: 'Meta', icon: Webhook },
-  { href: '/templates', label: 'Templates', icon: MessageSquareText },
-  { href: '/campaigns', label: 'Campanhas', icon: Send },
-  { href: '/contacts', label: 'Contatos', icon: Users },
-  { href: '/reports', label: 'Relatórios', icon: BarChart3 },
-  { href: '/alerts', label: 'Alertas', icon: Bell },
-  { href: '/dead-letters', label: 'Dead-letter', icon: Inbox },
-  { href: '/audit', label: 'Auditoria', icon: ScrollText },
-  { href: '/settings', label: 'Configurações', icon: Settings },
-];
+  { href: '/dashboard', key: 'dashboard', icon: LayoutDashboard },
+  { href: '/organizations', key: 'organizations', icon: Building2 },
+  { href: '/meta/accounts', key: 'meta', icon: Webhook },
+  { href: '/templates', key: 'templates', icon: MessageSquareText },
+  { href: '/campaigns', key: 'campaigns', icon: Send },
+  { href: '/contacts', key: 'contacts', icon: Users },
+  { href: '/reports', key: 'reports', icon: BarChart3 },
+  { href: '/alerts', key: 'alerts', icon: Bell },
+  { href: '/dead-letters', key: 'deadLetters', icon: Inbox },
+  { href: '/audit', key: 'audit', icon: ScrollText },
+  { href: '/settings', key: 'settings', icon: Settings },
+] satisfies { href: string; key: keyof Dictionary['nav']; icon: typeof Bell }[];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { dict } = useI18n();
   return (
     <aside className="flex h-full w-60 shrink-0 flex-col border-r border-wise-border bg-wise-surface">
       <div className="flex items-center gap-2 px-5 py-5">
@@ -40,12 +43,12 @@ export function Sidebar() {
           W
         </div>
         <div>
-          <div className="text-sm font-semibold leading-tight">Wise API Manager</div>
-          <div className="text-xs text-wise-muted">Central de Mensageria</div>
+          <div className="text-sm font-semibold leading-tight">{dict.app.name}</div>
+          <div className="text-xs text-wise-muted">{dict.app.tagline}</div>
         </div>
       </div>
       <nav className="flex-1 space-y-1 px-3 py-2">
-        {NAV.map(({ href, label, icon: Icon }) => {
+        {NAV.map(({ href, key, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(`${href}/`);
           return (
             <Link
@@ -59,7 +62,7 @@ export function Sidebar() {
               )}
             >
               <Icon size={18} />
-              {label}
+              {dict.nav[key]}
             </Link>
           );
         })}

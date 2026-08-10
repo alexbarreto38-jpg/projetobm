@@ -25,6 +25,10 @@ O Embedded Signup também usa **Facebook Login for Business** com uma configura�
 - App Secret nunca vai ao browser (spec §46).
 - Toda operação sensível é backend (spec §8).
 
+## Ver também
+- [`setup-app.md`](./setup-app.md) — onde solicitar permissões e App Review
+- [`embedded-signup.md`](./embedded-signup.md) — permissões no fluxo de conexão
+
 ---
 
 Last verified against Meta documentation: 2026-08-08 (resultados de busca;

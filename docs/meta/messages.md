@@ -48,6 +48,11 @@ restrictions, bloqueios ou enforcement. Número restrito → **pausar** aquele
 número e mostrar "Envio interrompido devido a restrição da plataforma". Não
 redirecionar para escapar da restrição.
 
+## Ver também
+- [`templates.md`](./templates.md) — o template que embasa o envio
+- [`webhooks.md`](./webhooks.md) — eventos de entrega/leitura/falha
+- [`error-handling.md`](./error-handling.md) — mapeamento de erros de envio
+
 ---
 
 Last verified against Meta documentation: 2026-08-08 (resultados de busca;
