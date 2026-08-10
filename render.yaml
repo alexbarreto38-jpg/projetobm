@@ -18,7 +18,9 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    dockerCommand: sh -c "pnpm --filter @wise/database db:deploy && pnpm --filter @wise/api start"
+    # `exec` faz o pnpm substituir o shell, para o SIGTERM do redeploy chegar ao
+    # processo e disparar o encerramento gracioso (drenar conexões em voo).
+    dockerCommand: sh -c "pnpm --filter @wise/database db:deploy && exec pnpm --filter @wise/api start"
     # Readiness: só considera o deploy saudável quando Postgres (e Redis) estão
     # alcançáveis. Liveness simples fica em /health.
     healthCheckPath: /ready

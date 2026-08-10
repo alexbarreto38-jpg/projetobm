@@ -46,8 +46,11 @@ services:
 
   api:
     build: .
-    # Aplica as migrations e sobe a API.
-    command: sh -c "pnpm --filter @wise/database db:deploy && pnpm --filter @wise/api start"
+    # init: PID 1 tini-like que repassa SIGTERM ao processo e evita zumbis —
+    # essencial para o encerramento gracioso (drenar conexões no redeploy).
+    init: true
+    # `exec` faz o pnpm substituir o shell, então o sinal chega ao processo.
+    command: sh -c "pnpm --filter @wise/database db:deploy && exec pnpm --filter @wise/api start"
     environment:
       NODE_ENV: development
       API_PORT: '3001'
@@ -73,6 +76,7 @@ services:
 
   worker:
     build: .
+    init: true
     command: pnpm --filter @wise/worker start
     environment:
       NODE_ENV: development
@@ -89,6 +93,7 @@ services:
 
   web:
     build: .
+    init: true
     command: pnpm --filter @wise/web start
     environment:
       NODE_ENV: production

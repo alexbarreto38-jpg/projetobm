@@ -26,6 +26,12 @@ O `render.yaml` na raiz define `wise-api` (web service Docker) e `wise-worker`
      quando tudo up, 503 se alguma dependência falha. O `render.yaml` usa
      `/ready` como `healthCheckPath` para não rotear tráfego antes de o serviço
      conseguir servir de fato.
+4. **Encerramento gracioso.** No redeploy/scale-down, o orquestrador manda
+   `SIGTERM`. A API e o worker param de aceitar trabalho novo, drenam o que está
+   em voo e fecham Postgres/Redis (com timeout de 10s como rede de segurança).
+   Para o sinal chegar ao processo, os comandos usam `exec` (o `pnpm` substitui
+   o shell) e o `docker-compose` usa `init: true` (PID 1 que repassa sinais e
+   evita zumbis).
 
 Alternativas (Railway/VPS): use a mesma imagem do `Dockerfile`, com os comandos:
 - API: `pnpm --filter @wise/database db:deploy && pnpm --filter @wise/api start`

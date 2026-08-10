@@ -2,6 +2,7 @@ import { prisma } from '@wise/database';
 import { captureException, initSentry, logger } from '@wise/logger';
 import { apiEnvSchema, parseEnv } from '@wise/validation';
 import { buildApp } from './app.js';
+import { createGracefulShutdown } from './shutdown.js';
 import { buildMetaContext, type MetaContext } from './meta/context.js';
 import { createRedisConnection, createQueueCounters } from '@wise/queue';
 import {
@@ -57,17 +58,18 @@ async function main() {
   let messageSendEnqueuer: MessageSendEnqueuer | undefined;
   let queueMetrics: (() => Promise<Record<string, Record<string, number>>>) | undefined;
   let checkRedis: (() => Promise<void>) | undefined;
+  let redisConnection: ReturnType<typeof createRedisConnection> | undefined;
   if (env.REDIS_URL) {
     webhookEnqueuer = new BullMqWebhookEnqueuer(env.REDIS_URL);
     templateDeploymentEnqueuer = new BullMqTemplateDeploymentEnqueuer(env.REDIS_URL);
     contactImportEnqueuer = new BullMqContactImportEnqueuer(env.REDIS_URL);
     campaignProcessingEnqueuer = new BullMqCampaignProcessingEnqueuer(env.REDIS_URL);
     messageSendEnqueuer = new BullMqMessageSendEnqueuer(env.REDIS_URL);
-    const connection = createRedisConnection(env.REDIS_URL);
-    const counters = createQueueCounters(connection);
+    redisConnection = createRedisConnection(env.REDIS_URL);
+    const counters = createQueueCounters(redisConnection);
     queueMetrics = () => counters.getCounts();
     checkRedis = async () => {
-      await connection.ping();
+      await redisConnection!.ping();
     };
   } else {
     logger.warn('REDIS_URL ausente — jobs não serão enfileirados.');
@@ -95,6 +97,22 @@ async function main() {
   const host = env.API_HOST ?? '0.0.0.0';
   await app.listen({ port, host });
   logger.info({ port, host }, 'API iniciada');
+
+  // Encerramento gracioso (spec §26): num redeploy/scale-down, o orquestrador
+  // manda SIGTERM. Paramos de aceitar novas conexões e drenamos as em voo
+  // (app.close), depois fechamos Postgres e Redis. A lógica vive em ./shutdown
+  // para ser testada de forma determinística.
+  const shutdown = createGracefulShutdown({
+    logger,
+    onExit: (code) => process.exit(code),
+    closers: [
+      { name: 'http', close: () => app.close() },
+      { name: 'prisma', close: () => prisma.$disconnect() },
+      ...(redisConnection ? [{ name: 'redis', close: () => redisConnection.quit() }] : []),
+    ],
+  });
+  process.on('SIGTERM', () => void shutdown('SIGTERM'));
+  process.on('SIGINT', () => void shutdown('SIGINT'));
 }
 
 main().catch(async (err) => {
