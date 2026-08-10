@@ -1,5 +1,6 @@
 import { prisma } from '@wise/database';
 import { captureException, initSentry, logger } from '@wise/logger';
+import { parseEnv, workerEnvSchema } from '@wise/validation';
 import { createRedisConnection, createWorker, QUEUE_NAMES } from '@wise/queue';
 import {
   CircuitBreaker,
@@ -25,10 +26,9 @@ import { processWebhookEvent } from './processors/webhook.js';
  */
 async function main() {
   await initSentry('worker');
-  const redisUrl = process.env.REDIS_URL;
-  if (!redisUrl) throw new Error('REDIS_URL ausente.');
-
-  const connection = createRedisConnection(redisUrl);
+  // Fail-fast: valida o ambiente e lista os problemas de uma vez (spec §46).
+  const env = parseEnv(workerEnvSchema);
+  const connection = createRedisConnection(env.REDIS_URL);
 
   // Handler de falha compartilhado: registra na dead-letter só quando o job
   // esgotou as tentativas (falha definitiva — spec §56).

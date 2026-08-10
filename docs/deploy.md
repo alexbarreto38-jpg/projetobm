@@ -49,6 +49,16 @@ Aponte o webhook do app da Meta para:
 Nunca comite segredos. Rotação de `ENCRYPTION_KEY` é suportada via
 `ENCRYPTION_KEY_PREVIOUS` (o CredentialVault decifra credenciais antigas).
 
+> **Validação no boot (fail-fast).** A API e o worker validam o ambiente ao
+> subir (`@wise/validation`): se algo estiver ausente ou malformado, o processo
+> **recusa iniciar** e imprime **todos** os problemas de uma vez — ex.:
+> `AUTH_SECRET: ausente ou muito curto`, `ENCRYPTION_KEY: deve ser base64 de 32
+> bytes`, `META_GRAPH_VERSION: formato esperado vXX.X`. As credenciais Meta são
+> opcionais, mas se **uma** peça do trio (`META_APP_ID`, `META_APP_SECRET`,
+> `ENCRYPTION_KEY`) estiver presente, o trio inteiro passa a ser exigido —
+> evita subir com metade da configuração. No Render, isso aparece nos logs do
+> serviço e o deploy falha o health check em vez de subir quebrado.
+
 ## 6. Deploy automático (GitHub Actions)
 O workflow `.github/workflows/deploy.yml` dispara o deploy ao dar push na `main`.
 Basta colar **dois secrets** no GitHub (Settings → Secrets and variables →

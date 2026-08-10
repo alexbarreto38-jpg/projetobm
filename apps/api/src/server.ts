@@ -1,5 +1,6 @@
 import { prisma } from '@wise/database';
 import { captureException, initSentry, logger } from '@wise/logger';
+import { apiEnvSchema, parseEnv } from '@wise/validation';
 import { buildApp } from './app.js';
 import { buildMetaContext, type MetaContext } from './meta/context.js';
 import { createRedisConnection, createQueueCounters } from '@wise/queue';
@@ -24,25 +25,25 @@ import type {
  */
 async function main() {
   await initSentry('api');
-  const authSecret = process.env.AUTH_SECRET;
-  if (!authSecret || authSecret.length < 16) {
-    throw new Error('AUTH_SECRET ausente ou muito curto (mín. 16 caracteres).');
-  }
+  // Fail-fast: valida todo o ambiente e lista os problemas de uma vez (spec §46).
+  const env = parseEnv(apiEnvSchema);
+  const authSecret = env.AUTH_SECRET;
 
   // Contexto Meta é opcional: só habilita as rotas /meta quando as variáveis
-  // estiverem presentes (permite subir a API sem credenciais na Fase 1).
+  // estiverem presentes (permite subir a API sem credenciais na Fase 1). O
+  // schema já garante que, se houver Meta, o trio completo existe.
   let meta: MetaContext | undefined;
-  if (process.env.META_APP_ID && process.env.META_APP_SECRET && process.env.ENCRYPTION_KEY) {
+  if (env.META_APP_ID && env.META_APP_SECRET && env.ENCRYPTION_KEY) {
     meta = buildMetaContext({
-      appId: process.env.META_APP_ID,
-      appSecret: process.env.META_APP_SECRET,
-      graphBaseUrl: process.env.META_GRAPH_BASE_URL ?? 'https://graph.facebook.com',
-      graphVersion: process.env.META_GRAPH_VERSION ?? 'v23.0',
-      encryptionKey: process.env.ENCRYPTION_KEY,
-      encryptionKeyPrevious: process.env.ENCRYPTION_KEY_PREVIOUS,
-      configId: process.env.META_CONFIG_ID,
-      defaultRedirectUri: process.env.META_REDIRECT_URI,
-      webhookVerifyToken: process.env.META_WEBHOOK_VERIFY_TOKEN,
+      appId: env.META_APP_ID,
+      appSecret: env.META_APP_SECRET,
+      graphBaseUrl: env.META_GRAPH_BASE_URL ?? 'https://graph.facebook.com',
+      graphVersion: env.META_GRAPH_VERSION ?? 'v23.0',
+      encryptionKey: env.ENCRYPTION_KEY,
+      encryptionKeyPrevious: env.ENCRYPTION_KEY_PREVIOUS,
+      configId: env.META_CONFIG_ID,
+      defaultRedirectUri: env.META_REDIRECT_URI,
+      webhookVerifyToken: env.META_WEBHOOK_VERIFY_TOKEN,
     });
     logger.info('Contexto Meta habilitado.');
   } else {
@@ -55,13 +56,13 @@ async function main() {
   let campaignProcessingEnqueuer: CampaignProcessingEnqueuer | undefined;
   let messageSendEnqueuer: MessageSendEnqueuer | undefined;
   let queueMetrics: (() => Promise<Record<string, Record<string, number>>>) | undefined;
-  if (process.env.REDIS_URL) {
-    webhookEnqueuer = new BullMqWebhookEnqueuer(process.env.REDIS_URL);
-    templateDeploymentEnqueuer = new BullMqTemplateDeploymentEnqueuer(process.env.REDIS_URL);
-    contactImportEnqueuer = new BullMqContactImportEnqueuer(process.env.REDIS_URL);
-    campaignProcessingEnqueuer = new BullMqCampaignProcessingEnqueuer(process.env.REDIS_URL);
-    messageSendEnqueuer = new BullMqMessageSendEnqueuer(process.env.REDIS_URL);
-    const counters = createQueueCounters(createRedisConnection(process.env.REDIS_URL));
+  if (env.REDIS_URL) {
+    webhookEnqueuer = new BullMqWebhookEnqueuer(env.REDIS_URL);
+    templateDeploymentEnqueuer = new BullMqTemplateDeploymentEnqueuer(env.REDIS_URL);
+    contactImportEnqueuer = new BullMqContactImportEnqueuer(env.REDIS_URL);
+    campaignProcessingEnqueuer = new BullMqCampaignProcessingEnqueuer(env.REDIS_URL);
+    messageSendEnqueuer = new BullMqMessageSendEnqueuer(env.REDIS_URL);
+    const counters = createQueueCounters(createRedisConnection(env.REDIS_URL));
     queueMetrics = () => counters.getCounts();
   } else {
     logger.warn('REDIS_URL ausente — jobs não serão enfileirados.');
@@ -69,10 +70,7 @@ async function main() {
 
   // COOKIE_SECURE permite desligar o flag Secure quando servindo por HTTP
   // (ex.: Docker local). Sem ele, o padrão é secure em produção.
-  const secureCookies =
-    process.env.COOKIE_SECURE !== undefined
-      ? process.env.COOKIE_SECURE === 'true'
-      : process.env.NODE_ENV === 'production';
+  const secureCookies = env.COOKIE_SECURE ?? env.NODE_ENV === 'production';
 
   const app = await buildApp({
     prisma,
@@ -87,8 +85,8 @@ async function main() {
     queueMetrics,
   });
 
-  const port = Number(process.env.API_PORT ?? 3001);
-  const host = process.env.API_HOST ?? '0.0.0.0';
+  const port = env.API_PORT ?? 3001;
+  const host = env.API_HOST ?? '0.0.0.0';
   await app.listen({ port, host });
   logger.info({ port, host }, 'API iniciada');
 }

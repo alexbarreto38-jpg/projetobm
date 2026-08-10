@@ -6,3 +6,4 @@ export * from './phone.js';
 export * from './contact.js';
 export * from './campaign.js';
 export * from './common.js';
+export * from './env.js';
