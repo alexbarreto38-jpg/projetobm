@@ -1,0 +1,32 @@
+name: Deploy
+
+# Dispara o deploy do backend (Render) e do painel (Vercel) via deploy hooks.
+# Configure os secrets no GitHub (Settings → Secrets and variables → Actions):
+#   RENDER_DEPLOY_HOOK_URL  — Render → serviço → Settings → Deploy Hook
+#   VERCEL_DEPLOY_HOOK_URL  — Vercel → projeto → Settings → Git → Deploy Hooks
+# Sem os secrets, os passos são pulados (o workflow não falha).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  RENDER_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+  VERCEL_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy backend (Render)
+        if: env.RENDER_HOOK != ''
+        run: curl -fsS -X POST "$RENDER_HOOK"
+
+      - name: Deploy painel (Vercel)
+        if: env.VERCEL_HOOK != ''
+        run: curl -fsS -X POST "$VERCEL_HOOK"
+
+      - name: Nada configurado
+        if: env.RENDER_HOOK == '' && env.VERCEL_HOOK == ''
+        run: echo "Nenhum deploy hook configurado — adicione RENDER_DEPLOY_HOOK_URL/VERCEL_DEPLOY_HOOK_URL nos secrets."

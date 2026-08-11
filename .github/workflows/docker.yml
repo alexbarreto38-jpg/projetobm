@@ -1,0 +1,17 @@
+name: Docker build
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+# Valida que a imagem do monorepo builda (sem publicar — publicação precisa de
+# credenciais de registry configuradas pelo mantenedor).
+jobs:
+  build-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t wise-api-manager:ci .

@@ -1,0 +1,115 @@
+import { connectByTokenAction, syncAccountAction } from '../actions';
+import { ConnectForm } from '../connect-form';
+import { Badge, statusTone } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { SubmitButton } from '@/components/form';
+import { EmptyState, ErrorState, PageHeader, Table, Td, Th } from '@/components/page';
+import { api } from '@/lib/api';
+import { getOrgContext } from '@/lib/session';
+
+export const dynamic = 'force-dynamic';
+
+interface PhoneNumber {
+  id: string;
+  displayPhoneNumber?: string;
+  qualityStatus?: string;
+  isPaused: boolean;
+}
+interface Account {
+  id: string;
+  name?: string;
+  externalAccountId: string;
+  accountModel: string;
+  metaConnection?: { status: string; lastSyncAt?: string };
+  phoneNumbers?: PhoneNumber[];
+}
+
+export default async function MetaAccountsPage() {
+  const ctx = await getOrgContext();
+  if (!ctx?.orgId) return <ErrorState message="Nenhuma organização selecionada." />;
+  const orgId = ctx.orgId;
+
+  const res = await api<{ accounts: Account[] }>(`/api/organizations/${orgId}/meta/accounts`);
+  if (!res.ok) return <ErrorState message={`Não foi possível carregar as contas: ${res.error}`} />;
+  const accounts = res.data?.accounts ?? [];
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Contas Meta"
+        description="Contas WhatsApp conectadas oficialmente, seus números e status."
+        action={
+          <Button title="Abre o Embedded Signup oficial (requer app Meta configurado)" disabled>
+            Conectar WhatsApp
+          </Button>
+        }
+      />
+
+      <ConnectForm action={connectByTokenAction.bind(null, orgId)} />
+
+      {accounts.length === 0 ? (
+        <EmptyState
+          title="Nenhuma conta conectada"
+          description="Conecte uma conta oficialmente pelo fluxo Embedded Signup da Meta."
+        />
+      ) : (
+        <Table>
+          <thead>
+            <tr>
+              <Th>Conta</Th>
+              <Th>Modelo</Th>
+              <Th>Números</Th>
+              <Th>Conexão</Th>
+              <Th>Última sync</Th>
+              <Th>Ações</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {accounts.map((a) => (
+              <tr key={a.id}>
+                <Td>
+                  <div className="font-medium">{a.name ?? a.externalAccountId}</div>
+                  <div className="text-xs text-wise-muted">{a.externalAccountId}</div>
+                </Td>
+                <Td>
+                  <Badge>{a.accountModel}</Badge>
+                </Td>
+                <Td>
+                  {(a.phoneNumbers ?? []).length}{' '}
+                  <span className="text-wise-muted">
+                    ({(a.phoneNumbers ?? []).filter((n) => !n.isPaused).length} ativos)
+                  </span>
+                </Td>
+                <Td>
+                  <Badge tone={statusTone(a.metaConnection?.status ?? '')}>
+                    {a.metaConnection?.status ?? '—'}
+                  </Badge>
+                </Td>
+                <Td>
+                  {a.metaConnection?.lastSyncAt
+                    ? new Date(a.metaConnection.lastSyncAt).toLocaleString('pt-BR')
+                    : '—'}
+                </Td>
+                <Td>
+                  <div className="flex items-center gap-2">
+                    <form action={syncAccountAction.bind(null, orgId, a.id)}>
+                      <SubmitButton variant="ghost" size="sm" pendingLabel="…">
+                        Sincronizar
+                      </SubmitButton>
+                    </form>
+                    <a
+                      href={`/meta/accounts/${a.id}/health`}
+                      className="text-sm text-wise-muted hover:text-wise-text"
+                    >
+                      Diagnóstico
+                    </a>
+                  </div>
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      )}
+    </div>
+  );
+}

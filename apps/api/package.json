@@ -1,0 +1,37 @@
+{
+  "name": "@wise/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/server.ts",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run --passWithNoTests",
+    "seed:demo": "tsx scripts/seed-demo.ts",
+    "simulate:webhooks": "tsx scripts/simulate-webhooks.ts"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^9.3.1",
+    "@fastify/helmet": "^11.1.1",
+    "@fastify/rate-limit": "^9.1.0",
+    "@wise/auth": "workspace:*",
+    "@wise/database": "workspace:*",
+    "@wise/logger": "workspace:*",
+    "@wise/meta-provider": "workspace:*",
+    "@wise/queue": "workspace:*",
+    "@wise/types": "workspace:*",
+    "@wise/validation": "workspace:*",
+    "fastify": "^4.28.1",
+    "zod": "^3.23.0",
+    "prom-client": "^15.1.3"
+  },
+  "devDependencies": {
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  }
+}
