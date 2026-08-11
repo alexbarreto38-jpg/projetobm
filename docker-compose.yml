@@ -49,8 +49,9 @@ services:
     # init: PID 1 tini-like que repassa SIGTERM ao processo e evita zumbis —
     # essencial para o encerramento gracioso (drenar conexões no redeploy).
     init: true
-    # `exec` faz o pnpm substituir o shell, então o sinal chega ao processo.
-    command: sh -c "pnpm --filter @wise/database db:deploy && exec pnpm --filter @wise/api start"
+    # Mesmo script usado em produção (scripts/start-api.sh): migra o banco e
+    # sobe a API. O `exec` interno preserva o encerramento gracioso.
+    command: sh /app/scripts/start-api.sh
     environment:
       NODE_ENV: development
       API_PORT: '3001'
@@ -77,7 +78,7 @@ services:
   worker:
     build: .
     init: true
-    command: pnpm --filter @wise/worker start
+    command: sh /app/scripts/start-worker.sh
     environment:
       NODE_ENV: development
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/wise?schema=public
