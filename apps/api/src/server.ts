@@ -93,7 +93,11 @@ async function main() {
     checkRedis,
   });
 
-  const port = env.API_PORT ?? 3001;
+  // Plataformas gerenciadas (ex.: Render) injetam a porta em `PORT` e roteiam o
+  // tráfego/health check para ela. Honramos `PORT` primeiro para não subir
+  // ouvindo numa porta que o orquestrador não conhece (health check falharia e
+  // o deploy seria marcado como "failed").
+  const port = Number(process.env.PORT) || env.API_PORT || 3001;
   const host = env.API_HOST ?? '0.0.0.0';
   await app.listen({ port, host });
   logger.info({ port, host }, 'API iniciada');

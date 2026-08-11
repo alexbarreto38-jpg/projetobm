@@ -65,6 +65,16 @@ describe('apiEnvSchema', () => {
     expect(env.API_PORT).toBe(3001);
   });
 
+  it('trata string vazia como ausente (ex.: envs em branco do Render Blueprint)', () => {
+    const env = parseEnv(
+      apiEnvSchema,
+      base({ META_CONFIG_ID: '', META_REDIRECT_URI: '', REDIS_URL: '' }),
+    );
+    expect(env.META_CONFIG_ID).toBeUndefined();
+    expect(env.META_REDIRECT_URI).toBeUndefined();
+    expect(env.REDIS_URL).toBeUndefined();
+  });
+
   it('valida o formato de META_GRAPH_VERSION', () => {
     expect(() => parseEnv(apiEnvSchema, base({ META_GRAPH_VERSION: '23' }))).toThrow(
       EnvValidationError,

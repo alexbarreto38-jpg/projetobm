@@ -102,12 +102,24 @@ export class EnvValidationError extends Error {
   }
 }
 
-/** Faz o parse ou lança `EnvValidationError` com todos os problemas de uma vez. */
+/**
+ * Faz o parse ou lança `EnvValidationError` com todos os problemas de uma vez.
+ *
+ * Antes de validar, variáveis com string vazia (`''`) são tratadas como
+ * ausentes. Plataformas de deploy (ex.: Render Blueprint) materializam toda
+ * chave declarada no `render.yaml` mesmo sem valor, mandando `''` em vez de
+ * omitir — o que, sem esta normalização, faria campos opcionais como
+ * `META_CONFIG_ID`/`META_REDIRECT_URI` falharem em `.min(1)`/`.url()` e a API
+ * recusar subir por engano.
+ */
 export function parseEnv<S extends z.ZodTypeAny>(
   schema: S,
   source: NodeJS.ProcessEnv = process.env,
 ): z.infer<S> {
-  const result = schema.safeParse(source);
+  const normalized = Object.fromEntries(
+    Object.entries(source).map(([key, value]) => [key, value === '' ? undefined : value]),
+  );
+  const result = schema.safeParse(normalized);
   if (!result.success) throw new EnvValidationError(result.error.issues);
   return result.data;
 }
