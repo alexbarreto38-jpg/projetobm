@@ -41,9 +41,10 @@ export function middleware(request: NextRequest) {
   if (!hasSession && !pathname.startsWith('/login')) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
-  if (hasSession && pathname.startsWith('/login')) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
-  }
+  // NÃO redirecionamos /login → /dashboard só porque existe cookie: se o cookie
+  // estiver inválido/expirado (ou a API indisponível), o layout do dashboard
+  // devolveria para /login e isso criaria um loop de redirecionamento
+  // (ERR_TOO_MANY_REDIRECTS). Deixar /login sempre renderizável quebra o ciclo.
 
   // btoa/crypto estão disponíveis no edge runtime do middleware.
   const nonce = btoa(crypto.randomUUID());
