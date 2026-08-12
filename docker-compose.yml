@@ -95,7 +95,7 @@ services:
   web:
     build: .
     init: true
-    command: pnpm --filter @wise/web start
+    command: sh /app/scripts/start-web.sh
     environment:
       NODE_ENV: production
       API_URL: http://api:3001

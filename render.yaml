@@ -58,6 +58,23 @@ services:
       - key: META_REDIRECT_URI
         sync: false
 
+  # Painel web (Next.js). Hospedado aqui no Render (em vez da Vercel) para manter
+  # tudo numa plataforma só, já conectada ao GitHub. `next start` honra a PORT do
+  # Render. API_URL aponta para a URL pública da API; as chamadas partem do
+  # servidor Next (BFF) — o token nunca vai ao navegador.
+  - type: web
+    name: wise-web
+    plan: free
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: sh /app/scripts/start-web.sh
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_URL
+        value: https://wise-api-3h8f.onrender.com
+
   # ── Worker de envio (DESLIGADO por enquanto) ────────────────────────────────
   # O Render não tem plano grátis para "worker" (background service). Enquanto o
   # objetivo é só colocar o PAINEL no ar sem custo, o worker fica comentado.
