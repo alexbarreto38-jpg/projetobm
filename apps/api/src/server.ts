@@ -2,6 +2,7 @@ import { prisma } from '@wise/database';
 import { captureException, initSentry, logger } from '@wise/logger';
 import { apiEnvSchema, parseEnv } from '@wise/validation';
 import { buildApp } from './app.js';
+import { maybeResetPasswordFromEnv } from './adminReset.js';
 import { createGracefulShutdown } from './shutdown.js';
 import { buildMetaContext, type MetaContext } from './meta/context.js';
 import { createRedisConnection, createQueueCounters } from '@wise/queue';
@@ -29,6 +30,10 @@ async function main() {
   // Fail-fast: valida todo o ambiente e lista os problemas de uma vez (spec §46).
   const env = parseEnv(apiEnvSchema);
   const authSecret = env.AUTH_SECRET;
+
+  // Recuperação de acesso (opcional): se ADMIN_PASSWORD_RESET estiver definida,
+  // redefine a senha do usuário no boot. Remover a variável depois de usar.
+  await maybeResetPasswordFromEnv(prisma);
 
   // Contexto Meta é opcional: só habilita as rotas /meta quando as variáveis
   // estiverem presentes (permite subir a API sem credenciais na Fase 1). O
