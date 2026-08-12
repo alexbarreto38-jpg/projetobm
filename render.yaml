@@ -75,36 +75,35 @@ services:
       - key: API_URL
         value: https://wise-api-3h8f.onrender.com
 
-  # ── Worker de envio (DESLIGADO por enquanto) ────────────────────────────────
-  # O Render não tem plano grátis para "worker" (background service). Enquanto o
-  # objetivo é só colocar o PAINEL no ar sem custo, o worker fica comentado.
-  # Para LIGAR o envio de campanhas em produção, descomente o bloco abaixo — ele
-  # usa o menor plano pago (~US$7/mês) — e faça o redeploy do Blueprint.
-  #
-  # - type: worker
-  #   name: wise-worker
-  #   plan: starter
-  #   runtime: docker
-  #   dockerfilePath: ./Dockerfile
-  #   dockerContext: .
-  #   dockerCommand: sh /app/scripts/start-worker.sh
-  #   envVars:
-  #     - key: NODE_ENV
-  #       value: production
-  #     - key: DATABASE_URL
-  #       fromDatabase:
-  #         name: wise-postgres
-  #         property: connectionString
-  #     - key: REDIS_URL
-  #       fromService:
-  #         type: redis
-  #         name: wise-redis
-  #         property: connectionString
-  #     - key: ENCRYPTION_KEY
-  #       sync: false
-  #     - key: META_APP_ID
-  #       sync: false
-  #     - key: META_APP_SECRET
-  #       sync: false
-  #     - key: META_GRAPH_VERSION
-  #       value: v23.0
+  # ── Worker de envio (LIGADO) ────────────────────────────────────────────────
+  # Processa as filas (BullMQ): submissão de templates à Meta e envio de
+  # mensagens/campanhas. Sem plano grátis no Render — usa o menor plano pago
+  # (starter, ~US$7/mês). Só ENCRYPTION_KEY e META_APP_SECRET pedem valor manual
+  # (segredos); o App ID é público e vai fixo aqui.
+  - type: worker
+    name: wise-worker
+    plan: starter
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: sh /app/scripts/start-worker.sh
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: wise-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: wise-redis
+          property: connectionString
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: META_APP_ID
+        value: '1199298338697843'
+      - key: META_APP_SECRET
+        sync: false
+      - key: META_GRAPH_VERSION
+        value: v23.0
