@@ -41,9 +41,24 @@ export async function api<T = unknown>(
     const text = await res.text();
     const body: unknown = text ? JSON.parse(text) : undefined;
     if (!res.ok) {
-      const error =
-        (body as { error?: { message?: string } } | undefined)?.error?.message ??
-        `HTTP ${res.status}`;
+      const errObj = (
+        body as
+          | {
+              error?: {
+                message?: string;
+                issues?: Array<{ path?: (string | number)[]; message?: string }>;
+              };
+            }
+          | undefined
+      )?.error;
+      let error = errObj?.message ?? `HTTP ${res.status}`;
+      // Detalha erros de validação (ex.: qual campo do template está inválido).
+      if (errObj?.issues?.length) {
+        const details = errObj.issues
+          .map((i) => `${(i.path ?? []).join('.') || 'campo'}: ${i.message ?? 'inválido'}`)
+          .join(' · ');
+        error = `${error} (${details})`;
+      }
       return { ok: false, status: res.status, error };
     }
     return { ok: true, status: res.status, data: body as T };
