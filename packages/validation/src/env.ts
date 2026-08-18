@@ -26,6 +26,16 @@ const boolish = z
   .optional()
   .transform((v) => (v === undefined ? undefined : v === 'true'));
 
+/**
+ * Torna um schema opcional tratando string VAZIA como ausente. Necessário
+ * porque o Docker/orquestradores costumam repassar variáveis não preenchidas
+ * como "" — sem isto, um `INFOBIP_BASE_URL=""` quebraria a validação de URL no
+ * boot em vez de simplesmente desabilitar o recurso.
+ */
+function optEnv<T extends z.ZodTypeAny>(schema: T) {
+  return z.preprocess((v) => (v === '' ? undefined : v), schema.optional());
+}
+
 const baseEnv = {
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: z
@@ -78,6 +88,27 @@ export const apiEnvSchema = z
     API_PORT: z.coerce.number().int().positive().optional(),
     API_HOST: z.string().min(1).optional(),
     COOKIE_SECURE: boolish,
+    // Assistente conversacional (spec §1, §25). Opcional: sem a chave, as rotas
+    // /assistant não são registradas. `optEnv` trata string vazia como ausente —
+    // essencial quando o Docker repassa variáveis não preenchidas (VAR="").
+    ANTHROPIC_API_KEY: optEnv(z.string().min(1)),
+    ANTHROPIC_MODEL: optEnv(z.string().min(1)),
+    ANTHROPIC_BASE_URL: optEnv(z.string().url()),
+    // Provider Infobip do assistente (spec §1). Quando INFOBIP_BASE_URL +
+    // INFOBIP_API_KEY estão presentes, o assistente roda sobre o Infobip.
+    INFOBIP_BASE_URL: optEnv(z.string().url()),
+    INFOBIP_API_KEY: optEnv(z.string().min(1)),
+    INFOBIP_SENDERS: optEnv(z.string().min(1)), // JSON: [{id,number,label}]
+    INFOBIP_PRICE_PER_MESSAGE: optEnv(z.coerce.number().positive()),
+    INFOBIP_DEFAULT_COUNTRY: optEnv(z.string().min(2).max(2)),
+    INFOBIP_WEBHOOK_TOKEN: optEnv(z.string().min(1)),
+    // Identidade do canal de entrada (spec §3, §19): mapeia telefone do WhatsApp
+    // para usuário/organização/papel. JSON: [{phone,userId,organizationId,role}].
+    INFOBIP_INBOUND_USERS: optEnv(z.string().min(1)),
+    // Transcrição de áudio (spec §3). Endpoint compatível com /audio/transcriptions.
+    TRANSCRIBE_URL: optEnv(z.string().url()),
+    TRANSCRIBE_API_KEY: optEnv(z.string().min(1)),
+    TRANSCRIBE_MODEL: optEnv(z.string().min(1)),
   })
   .superRefine(refineMeta);
 

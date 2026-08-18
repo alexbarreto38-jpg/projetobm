@@ -12,14 +12,17 @@
     "lint": "eslint .",
     "test": "vitest run --passWithNoTests",
     "seed:demo": "tsx scripts/seed-demo.ts",
-    "simulate:webhooks": "tsx scripts/simulate-webhooks.ts"
+    "simulate:webhooks": "tsx scripts/simulate-webhooks.ts",
+    "demo:assistant": "tsx scripts/assistant-infobip-demo.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^9.3.1",
     "@fastify/helmet": "^11.1.1",
     "@fastify/rate-limit": "^9.1.0",
+    "@wise/assistant": "workspace:*",
     "@wise/auth": "workspace:*",
     "@wise/database": "workspace:*",
+    "@wise/infobip-provider": "workspace:*",
     "@wise/logger": "workspace:*",
     "@wise/meta-provider": "workspace:*",
     "@wise/queue": "workspace:*",

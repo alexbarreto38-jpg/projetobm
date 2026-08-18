@@ -1,4 +1,7 @@
+import { AnthropicClient, type LlmClient } from '@wise/assistant';
 import { prisma } from '@wise/database';
+import { buildInfobipAssistant } from './modules/assistant/infobip.js';
+import { RedisSessionStore } from './modules/assistant/session-store.js';
 import { captureException, initSentry, logger } from '@wise/logger';
 import { apiEnvSchema, parseEnv } from '@wise/validation';
 import { buildApp } from './app.js';
@@ -79,6 +82,26 @@ async function main() {
   // (ex.: Docker local). Sem ele, o padrão é secure em produção.
   const secureCookies = env.COOKIE_SECURE ?? env.NODE_ENV === 'production';
 
+  // Assistente conversacional (spec §1, §25): só habilita quando há chave de API.
+  let assistantLlm: LlmClient | undefined;
+  if (env.ANTHROPIC_API_KEY) {
+    assistantLlm = new AnthropicClient({
+      apiKey: env.ANTHROPIC_API_KEY,
+      model: env.ANTHROPIC_MODEL,
+      baseUrl: env.ANTHROPIC_BASE_URL,
+    });
+    logger.info('Assistente conversacional habilitado.');
+  } else {
+    logger.warn('ANTHROPIC_API_KEY ausente — rotas /assistant desabilitadas nesta instância.');
+  }
+
+  // Provider Infobip do assistente (spec §1). Quando configurado, substitui o
+  // backend Meta das ferramentas do assistente. Com Redis, stores/dedupe/seq são
+  // compartilhados entre réplicas (spec §5, §23).
+  const infobipAssistant = buildInfobipAssistant(env, redisConnection) ?? undefined;
+  // Sessão do assistente em Redis quando disponível (compartilhada entre réplicas).
+  const assistantSessionStore = redisConnection ? new RedisSessionStore(redisConnection) : undefined;
+
   const app = await buildApp({
     prisma,
     authSecret,
@@ -91,6 +114,10 @@ async function main() {
     messageSendEnqueuer,
     queueMetrics,
     checkRedis,
+    assistantLlm,
+    infobipAssistant,
+    infobipWebhookToken: env.INFOBIP_WEBHOOK_TOKEN,
+    assistantSessionStore,
   });
 
   const port = env.API_PORT ?? 3001;

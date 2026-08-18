@@ -64,6 +64,23 @@ services:
       META_GRAPH_VERSION: v23.0
       META_WEBHOOK_VERIFY_TOKEN: ${META_WEBHOOK_VERIFY_TOKEN:-dev-verify}
       COOKIE_SECURE: 'false'
+      # --- Assistente (Módulo 1). Preencha no .env e reinicie — sem editar código.
+      # Sem ANTHROPIC_API_KEY, as rotas /assistant ficam desabilitadas.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-}
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
+      # --- Provider Infobip (deixe vazio para usar a Meta como backend).
+      INFOBIP_BASE_URL: ${INFOBIP_BASE_URL:-}
+      INFOBIP_API_KEY: ${INFOBIP_API_KEY:-}
+      INFOBIP_SENDERS: ${INFOBIP_SENDERS:-}
+      INFOBIP_PRICE_PER_MESSAGE: ${INFOBIP_PRICE_PER_MESSAGE:-}
+      INFOBIP_DEFAULT_COUNTRY: ${INFOBIP_DEFAULT_COUNTRY:-}
+      INFOBIP_WEBHOOK_TOKEN: ${INFOBIP_WEBHOOK_TOKEN:-}
+      INFOBIP_INBOUND_USERS: ${INFOBIP_INBOUND_USERS:-}
+      # --- Transcrição de áudio (opcional).
+      TRANSCRIBE_URL: ${TRANSCRIBE_URL:-}
+      TRANSCRIBE_API_KEY: ${TRANSCRIBE_API_KEY:-}
+      TRANSCRIBE_MODEL: ${TRANSCRIBE_MODEL:-}
     depends_on:
       postgres:
         condition: service_healthy
