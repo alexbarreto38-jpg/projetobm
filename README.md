@@ -94,7 +94,11 @@ Business Platform**, usando **exclusivamente** APIs e fluxos **oficiais da Meta*
   responde 200 na hora e drena a `InboundQueue` em segundo plano (§27).
 - ✅ **Painel de chat do assistente:** página `/assistant` no `apps/web` — conversa
   em linguagem natural via BFF (token só no servidor), mostra estado/id da
-  campanha, sugestões e reiniciar; mesma sessão do canal WhatsApp.
+  campanha, sugestões e reiniciar; mesma sessão do canal WhatsApp. Coberto por e2e.
+- ✅ **Multi-réplica (com `REDIS_URL`):** stores do assistente/Infobip
+  (sessão, lista, campanha) em Redis, sequência de id de campanha via `INCR` e
+  dedupe do webhook via `SET NX` — várias réplicas da API compartilham o estado
+  e ele sobrevive a reinícios. Sem Redis, cai no in-memory por processo.
 - ✅ **Observabilidade + resiliência (Fase 9 + §28):** `CircuitBreaker` por número
   (CLOSED→OPEN→HALF_OPEN, estado em Redis) integrado ao envio; `ReportsService`
   (funil + taxas, §32), `AccountHealthService` (§29) e `AlertsService` (§36) com

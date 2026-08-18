@@ -1,4 +1,5 @@
 import type { CampaignDraft, LlmMessage } from '@wise/assistant';
+import type { RedisLike } from '@wise/infobip-provider';
 
 /**
  * Estado de uma conversa do assistente entre turnos (spec §5): o rascunho da
@@ -33,6 +34,28 @@ export class InMemorySessionStore implements AssistantSessionStore {
   reset(key: string): Promise<void> {
     this.map.delete(key);
     return Promise.resolve();
+  }
+}
+
+/**
+ * Store de sessão em Redis (spec §5): a conversa/rascunho é compartilhada entre
+ * réplicas e sobrevive a reinícios. Selecionado quando há REDIS_URL.
+ */
+export class RedisSessionStore implements AssistantSessionStore {
+  constructor(private readonly redis: RedisLike) {}
+
+  async get(key: string): Promise<ConversationState> {
+    const raw = await this.redis.get(this.key(key));
+    return raw ? (JSON.parse(raw) as ConversationState) : { draft: null, history: [] };
+  }
+  async set(key: string, state: ConversationState): Promise<void> {
+    await this.redis.set(this.key(key), JSON.stringify(state));
+  }
+  async reset(key: string): Promise<void> {
+    await this.redis.del(this.key(key));
+  }
+  private key(key: string): string {
+    return `wise:assistant:session:${key}`;
   }
 }
 

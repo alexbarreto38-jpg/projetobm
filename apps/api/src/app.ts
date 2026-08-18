@@ -24,6 +24,7 @@ import {
   registerAssistantRoutes,
   registerAssistantWebhookRoutes,
 } from './modules/assistant/routes.js';
+import type { AssistantSessionStore } from './modules/assistant/session-store.js';
 import { registerInfobipInboundRoutes } from './modules/assistant/whatsapp-inbound.js';
 import { registerAuditRoutes } from './modules/audit/routes.js';
 import { registerCampaignRoutes } from './modules/campaigns/routes.js';
@@ -79,6 +80,11 @@ export interface AppConfig {
   infobipAssistant?: InfobipAssistantModule;
   /** Token opcional para autenticar o webhook de entrega do Infobip. */
   infobipWebhookToken?: string;
+  /**
+   * Store de sessão do assistente (spec §5). Com Redis, a conversa é
+   * compartilhada entre réplicas; sem ele, cai no in-memory por processo.
+   */
+  assistantSessionStore?: AssistantSessionStore;
   /**
    * Ping do Redis para a readiness (/ready). Quando ausente (ex.: sem Redis
    * nesta instância), a checagem de Redis é reportada como "skipped".

@@ -11,13 +11,18 @@ import {
   InfobipClient,
   InMemoryCampaignStore,
   InMemoryContactListStore,
+  RedisCampaignStore,
+  RedisContactListStore,
   type CampaignStore,
   type ContactListStore,
   type InfobipSenderConfig,
 } from '@wise/infobip-provider';
 import { logger } from '@wise/logger';
+import type { createRedisConnection } from '@wise/queue';
 import { ROLES, type RoleName } from '@wise/types';
 import type { CountryCode } from '@wise/validation';
+
+type RedisConnection = ReturnType<typeof createRedisConnection>;
 
 /**
  * Constrói o backend do assistente sobre o Infobip a partir do ambiente
@@ -42,6 +47,12 @@ export interface InfobipAssistantModule {
   transcriber: Transcriber;
   /** Identidade do remetente do WhatsApp (spec §19). */
   resolveUser: WhatsAppUserResolver;
+  /**
+   * Dedupe de mensagens recebidas entre réplicas (spec §23): true na primeira
+   * vez que vê o messageId. Presente só quando há Redis; sem ele, o webhook usa
+   * dedupe em memória (por réplica).
+   */
+  dedupe?: (messageId: string) => Promise<boolean>;
 }
 
 export interface InfobipAssistantEnv {
@@ -56,7 +67,10 @@ export interface InfobipAssistantEnv {
   TRANSCRIBE_MODEL?: string;
 }
 
-export function buildInfobipAssistant(env: InfobipAssistantEnv): InfobipAssistantModule | null {
+export function buildInfobipAssistant(
+  env: InfobipAssistantEnv,
+  redis?: RedisConnection,
+): InfobipAssistantModule | null {
   if (!env.INFOBIP_BASE_URL || !env.INFOBIP_API_KEY) return null;
 
   const senders = parseSenders(env.INFOBIP_SENDERS);
@@ -64,9 +78,19 @@ export function buildInfobipAssistant(env: InfobipAssistantEnv): InfobipAssistan
     logger.warn('INFOBIP_SENDERS ausente/vazio — assistente Infobip sem remetentes configurados.');
   }
 
-  const lists = new InMemoryContactListStore();
-  const campaigns = new InMemoryCampaignStore();
+  // Com Redis, os stores são compartilhados entre réplicas e persistem (spec §5).
+  const lists: ContactListStore = redis ? new RedisContactListStore(redis) : new InMemoryContactListStore();
+  const campaigns: CampaignStore = redis ? new RedisCampaignStore(redis) : new InMemoryCampaignStore();
   const client = new InfobipClient({ baseUrl: env.INFOBIP_BASE_URL, apiKey: env.INFOBIP_API_KEY });
+
+  // Dedupe entre réplicas via SET NX + TTL (spec §23). Sem Redis, o webhook cai
+  // no dedupe em memória por réplica.
+  const dedupe = redis
+    ? async (messageId: string): Promise<boolean> => {
+        const res = await redis.set(`wise:assistant:inbound:${messageId}`, '1', 'EX', 86400, 'NX');
+        return res === 'OK';
+      }
+    : undefined;
 
   const backend = new InfobipAssistantBackend({
     client,
@@ -80,13 +104,18 @@ export function buildInfobipAssistant(env: InfobipAssistantEnv): InfobipAssistan
     },
   });
 
-  // Sequência simples por organização, em memória (o Infobip não tem tabela de
-  // campanhas neste provider). Suficiente para o id humano (spec §23).
+  // Sequência por organização para o id humano (spec §23). Com Redis, usa INCR
+  // (atômico entre réplicas); sem Redis, um contador em memória por processo.
   const counters = new Map<string, number>();
-  const allocateCampaignId = (organizationId: string): Promise<string> => {
+  const allocateCampaignId = async (organizationId: string): Promise<string> => {
+    const year = new Date().getFullYear();
+    if (redis) {
+      const next = await redis.incr(`wise:assistant:campaignseq:${organizationId}:${year}`);
+      return formatCampaignId(year, next);
+    }
     const next = (counters.get(organizationId) ?? 0) + 1;
     counters.set(organizationId, next);
-    return Promise.resolve(formatCampaignId(new Date().getFullYear(), next));
+    return formatCampaignId(year, next);
   };
 
   const transcriber: Transcriber =
@@ -101,8 +130,21 @@ export function buildInfobipAssistant(env: InfobipAssistantEnv): InfobipAssistan
 
   const resolveUser = buildUserResolver(env.INFOBIP_INBOUND_USERS);
 
-  logger.info({ senders: senders.length }, 'Assistente Infobip habilitado.');
-  return { backend, lists, campaigns, allocateCampaignId, client, senders, transcriber, resolveUser };
+  logger.info(
+    { senders: senders.length, shared: Boolean(redis) },
+    'Assistente Infobip habilitado.',
+  );
+  return {
+    backend,
+    lists,
+    campaigns,
+    allocateCampaignId,
+    client,
+    senders,
+    transcriber,
+    resolveUser,
+    dedupe,
+  };
 }
 
 interface InboundUserConfig {

@@ -16,6 +16,7 @@ export function getAssistantService(config: AppConfig): AssistantService | null 
         llm: config.assistantLlm,
         backend: config.infobipAssistant?.backend,
         allocateCampaignId: config.infobipAssistant?.allocateCampaignId,
+        store: config.assistantSessionStore,
       })
     : null;
   cache.set(config, service);

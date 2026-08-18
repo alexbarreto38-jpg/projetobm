@@ -96,8 +96,10 @@ fiação.
   aprovação por sender, **validação da lista** (normalização E.164 + dedupe via
   `@wise/validation`), envio em lotes com `messageId` idempotente (§54) e
   acompanhamento por **relatórios de entrega**.
-- **Stores** (`ContactListStore`, `CampaignStore`) — in-memory no MVP, trocáveis
-  por Redis/Postgres. `ingestDeliveryReports` alimenta o andamento pelo webhook.
+- **Stores** (`ContactListStore`, `CampaignStore`) — in-memory por padrão;
+  **em Redis quando há `REDIS_URL`** (`RedisContactListStore`/`RedisCampaignStore`),
+  compartilhados entre réplicas e persistentes. `ingestDeliveryReports` alimenta
+  o andamento pelo webhook.
 
 Diferente da Meta, o Infobip **expõe saldo** — então `get_account_balance`
 funciona de verdade (§11). Custo por mensagem é opcional (`INFOBIP_PRICE_PER_MESSAGE`);
@@ -137,10 +139,12 @@ configurado.
 O webhook de entrada **responde 200 imediatamente** e enfileira o processamento
 (transcrição + LLM + resposta) numa `InboundQueue`, drenada em segundo plano por
 um laço sequencial. Isso evita timeout e reentrega pelo Infobip. A implementação
-padrão é `InProcessInboundQueue` (instância única, com backpressure/descarte
-acima do `maxDepth`). Para múltiplas réplicas, troque por uma fila Redis/BullMQ +
-stores em Redis — a interface `InboundQueue` permite a substituição sem tocar no
-webhook. Dedupe por `messageId` continua no webhook (spec §23).
+padrão é `InProcessInboundQueue` (por réplica, com backpressure/descarte acima do
+`maxDepth`). Com `REDIS_URL`, o **dedupe por `messageId` é compartilhado entre
+réplicas** (`SET NX + TTL`), então várias réplicas podem receber o webhook sem
+processar a mesma mensagem duas vezes. Para tirar o processamento do processo web
+por completo, troque a `InboundQueue` por uma fila Redis/BullMQ — a interface
+permite a substituição sem tocar no webhook.
 
 ## O que a infraestrutura Meta **não** expõe (honestidade — spec §11, §24)
 
@@ -166,12 +170,19 @@ Só registrados quando `ANTHROPIC_API_KEY` está configurado.
   `{ reply, campaignId, state }`.
 - `POST /organizations/:id/assistant/reset` — limpa a conversa do usuário.
 
-## Persistência da conversa
+## Persistência da conversa e multi-réplica
 
-O estado da conversa (rascunho + histórico) usa um `AssistantSessionStore`. O
-MVP traz `InMemorySessionStore` (uma instância). Em produção com múltiplas
-réplicas, implemente o store sobre Redis/Postgres para sobreviver a reinícios e
-ser compartilhado entre instâncias.
+O estado da conversa (rascunho + histórico) usa um `AssistantSessionStore`. Sem
+Redis, é `InMemorySessionStore` (uma instância). **Com `REDIS_URL`, a API usa
+`RedisSessionStore`** — e o provider Infobip usa stores Redis para lista e
+campanha — de modo que **várias réplicas da API compartilham o estado** e ele
+sobrevive a reinícios. A sequência do id humano de campanha usa `INCR` (atômico
+entre réplicas) e o dedupe do webhook de entrada usa `SET NX + TTL`.
+
+Evolução (não incluída): mover o processamento do webhook para um worker BullMQ
+dedicado. Com os stores já em Redis, isso passa a ser viável sem rearquitetar o
+estado — hoje o processamento roda em processo (fila `InboundQueue`), o que já
+resolve o ack rápido do webhook.
 
 ## Canal WhatsApp e áudio (spec §3, §29)
 

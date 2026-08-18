@@ -21,8 +21,15 @@ export function registerInfobipInboundRoutes(app: FastifyInstance, config: AppCo
   const service = getAssistantService(config);
   if (!module || !service) return;
 
-  // Dedupe de mensagens recebidas (spec §23): o Infobip pode reentregar.
+  // Dedupe de mensagens recebidas (spec §23): o Infobip pode reentregar. Com
+  // Redis, é compartilhado entre réplicas; sem Redis, em memória por réplica.
   const processed = new Set<string>();
+  const isNew = async (messageId: string): Promise<boolean> => {
+    if (module.dedupe) return module.dedupe(messageId);
+    if (processed.has(messageId)) return false;
+    processed.add(messageId);
+    return true;
+  };
   const token = config.infobipWebhookToken;
 
   // Processamento assíncrono: o webhook responde 200 na hora e a fila drena em
@@ -43,8 +50,7 @@ export function registerInfobipInboundRoutes(app: FastifyInstance, config: AppCo
     const messages = normalizeInbound(request.body as Parameters<typeof normalizeInbound>[0]);
     let queued = 0;
     for (const inbound of messages) {
-      if (processed.has(inbound.messageId)) continue;
-      processed.add(inbound.messageId);
+      if (!(await isNew(inbound.messageId))) continue;
       queue.enqueue(inbound);
       queued++;
     }
