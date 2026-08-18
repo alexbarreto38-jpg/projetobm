@@ -66,6 +66,10 @@ export class InfobipClient {
    * (spec §3). Retorna os bytes e o content-type para transcrição/processamento.
    */
   async downloadMedia(url: string): Promise<{ data: Uint8Array; contentType: string }> {
+    // A URL vem do webhook (não confiável). Nunca anexar a chave da API a um
+    // host arbitrário: restringe a https + host da conta Infobip antes do fetch
+    // (evita SSRF e exfiltração de credencial).
+    this.assertInfobipHost(url);
     const res = await this.fetchImpl(url, {
       method: 'GET',
       headers: { authorization: `App ${this.apiKey}` },
@@ -76,6 +80,26 @@ export class InfobipClient {
     }
     const buffer = new Uint8Array(await res.arrayBuffer());
     return { data: buffer, contentType: res.headers.get('content-type') ?? 'application/octet-stream' };
+  }
+
+  /**
+   * Garante que a URL de mídia é https e pertence à conta Infobip (mesmo host da
+   * baseUrl ou subdomínio de infobip.com). Impede que a chave da API seja
+   * enviada a um host controlado pelo atacante (SSRF/exfiltração).
+   */
+  private assertInfobipHost(url: string): void {
+    let target: URL;
+    try {
+      target = new URL(url);
+    } catch {
+      throw new InfobipApiError(400, undefined, 'URL de mídia inválida.');
+    }
+    const base = new URL(this.baseUrl);
+    const sameHost = target.host === base.host;
+    const infobipDomain = target.hostname === 'infobip.com' || target.hostname.endsWith('.infobip.com');
+    if (target.protocol !== 'https:' || !(sameHost || infobipDomain)) {
+      throw new InfobipApiError(400, undefined, `host de mídia não permitido: ${target.host}`);
+    }
   }
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {

@@ -52,7 +52,7 @@ describe('InfobipClient', () => {
     expect(seenBody).toEqual({ from: '5511b', to: '5511a', content: { text: 'oi' } });
   });
 
-  it('baixa mídia com autenticação (spec §3)', async () => {
+  it('baixa mídia com autenticação, só do host da conta Infobip (spec §3)', async () => {
     const bytes = new Uint8Array([1, 2, 3]);
     const client = new InfobipClient({
       baseUrl: 'https://x.api.infobip.com',
@@ -65,9 +65,24 @@ describe('InfobipClient', () => {
           arrayBuffer: async () => bytes.buffer,
         }) as unknown as Response) as unknown as typeof fetch,
     });
-    const media = await client.downloadMedia('https://m/a.ogg');
+    const media = await client.downloadMedia('https://x.api.infobip.com/whatsapp/1/media/abc');
     expect(media.contentType).toBe('audio/ogg');
     expect(Array.from(media.data)).toEqual([1, 2, 3]);
+  });
+
+  it('recusa baixar mídia de host arbitrário — não vaza a API key (SSRF)', async () => {
+    let called = false;
+    const client = new InfobipClient({
+      baseUrl: 'https://x.api.infobip.com',
+      apiKey: 'k',
+      fetchImpl: (async () => {
+        called = true;
+        return { ok: true, status: 200, headers: { get: () => null }, arrayBuffer: async () => new ArrayBuffer(0) } as unknown as Response;
+      }) as unknown as typeof fetch,
+    });
+    await expect(client.downloadMedia('https://attacker.example/x')).rejects.toThrow(/host de mídia não permitido/);
+    await expect(client.downloadMedia('http://x.api.infobip.com/x')).rejects.toThrow(/host de mídia não permitido/);
+    expect(called).toBe(false); // nunca chega a fazer o fetch (nem envia o header)
   });
 
   it('traduz erros preservando os campos do Infobip (spec §22)', async () => {
