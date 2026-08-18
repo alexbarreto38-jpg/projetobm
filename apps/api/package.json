@@ -12,7 +12,8 @@
     "lint": "eslint .",
     "test": "vitest run --passWithNoTests",
     "seed:demo": "tsx scripts/seed-demo.ts",
-    "simulate:webhooks": "tsx scripts/simulate-webhooks.ts"
+    "simulate:webhooks": "tsx scripts/simulate-webhooks.ts",
+    "demo:assistant": "tsx scripts/assistant-infobip-demo.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^9.3.1",
