@@ -65,6 +65,33 @@ describe('apiEnvSchema', () => {
     expect(env.API_PORT).toBe(3001);
   });
 
+  it('trata variáveis do assistente vazias como ausentes (passthrough do Docker)', () => {
+    // O Docker repassa VAR="" quando não preenchida; isso NÃO pode quebrar o boot.
+    const env = parseEnv(
+      apiEnvSchema,
+      base({
+        ANTHROPIC_API_KEY: '',
+        INFOBIP_BASE_URL: '',
+        INFOBIP_PRICE_PER_MESSAGE: '',
+        TRANSCRIBE_URL: '',
+      }),
+    );
+    expect(env.ANTHROPIC_API_KEY).toBeUndefined();
+    expect(env.INFOBIP_BASE_URL).toBeUndefined();
+    expect(env.INFOBIP_PRICE_PER_MESSAGE).toBeUndefined();
+    expect(env.TRANSCRIBE_URL).toBeUndefined();
+  });
+
+  it('aceita as variáveis do assistente quando preenchidas', () => {
+    const env = parseEnv(
+      apiEnvSchema,
+      base({ ANTHROPIC_API_KEY: 'sk-ant-x', INFOBIP_BASE_URL: 'https://x.api.infobip.com', INFOBIP_PRICE_PER_MESSAGE: '0.05' }),
+    );
+    expect(env.ANTHROPIC_API_KEY).toBe('sk-ant-x');
+    expect(env.INFOBIP_BASE_URL).toBe('https://x.api.infobip.com');
+    expect(env.INFOBIP_PRICE_PER_MESSAGE).toBe(0.05);
+  });
+
   it('valida o formato de META_GRAPH_VERSION', () => {
     expect(() => parseEnv(apiEnvSchema, base({ META_GRAPH_VERSION: '23' }))).toThrow(
       EnvValidationError,
