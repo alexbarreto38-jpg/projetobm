@@ -91,6 +91,13 @@ export const apiEnvSchema = z
     INFOBIP_PRICE_PER_MESSAGE: z.coerce.number().positive().optional(),
     INFOBIP_DEFAULT_COUNTRY: z.string().min(2).max(2).optional(),
     INFOBIP_WEBHOOK_TOKEN: z.string().min(1).optional(),
+    // Identidade do canal de entrada (spec §3, §19): mapeia telefone do WhatsApp
+    // para usuário/organização/papel. JSON: [{phone,userId,organizationId,role}].
+    INFOBIP_INBOUND_USERS: z.string().min(1).optional(),
+    // Transcrição de áudio (spec §3). Endpoint compatível com /audio/transcriptions.
+    TRANSCRIBE_URL: z.string().url().optional(),
+    TRANSCRIBE_API_KEY: z.string().min(1).optional(),
+    TRANSCRIBE_MODEL: z.string().min(1).optional(),
   })
   .superRefine(refineMeta);
 

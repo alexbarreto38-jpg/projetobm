@@ -35,6 +35,41 @@ describe('InfobipClient', () => {
     expect((seen?.headers as Record<string, string>).authorization).toBe('App secret');
   });
 
+  it('envia mensagem de texto de sessão (spec §3)', async () => {
+    let seenUrl = '';
+    let seenBody: unknown;
+    const client = new InfobipClient({
+      baseUrl: 'https://x.api.infobip.com',
+      apiKey: 'k',
+      fetchImpl: (async (url: string, init: RequestInit) => {
+        seenUrl = String(url);
+        seenBody = JSON.parse(String(init.body));
+        return { ok: true, status: 200, text: async () => '{"messages":[]}' } as Response;
+      }) as unknown as typeof fetch,
+    });
+    await client.sendTextMessage({ from: '5511b', to: '5511a', text: 'oi' });
+    expect(seenUrl).toContain('/whatsapp/1/message/text');
+    expect(seenBody).toEqual({ from: '5511b', to: '5511a', content: { text: 'oi' } });
+  });
+
+  it('baixa mídia com autenticação (spec §3)', async () => {
+    const bytes = new Uint8Array([1, 2, 3]);
+    const client = new InfobipClient({
+      baseUrl: 'https://x.api.infobip.com',
+      apiKey: 'k',
+      fetchImpl: (async () =>
+        ({
+          ok: true,
+          status: 200,
+          headers: { get: (h: string) => (h === 'content-type' ? 'audio/ogg' : null) },
+          arrayBuffer: async () => bytes.buffer,
+        }) as unknown as Response) as unknown as typeof fetch,
+    });
+    const media = await client.downloadMedia('https://m/a.ogg');
+    expect(media.contentType).toBe('audio/ogg');
+    expect(Array.from(media.data)).toEqual([1, 2, 3]);
+  });
+
   it('traduz erros preservando os campos do Infobip (spec §22)', async () => {
     const client = new InfobipClient({
       baseUrl: 'https://x.api.infobip.com',

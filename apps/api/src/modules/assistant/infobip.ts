@@ -1,5 +1,11 @@
-import { formatCampaignId } from '@wise/assistant';
-import type { AssistantBackend } from '@wise/assistant';
+import {
+  formatCampaignId,
+  HttpTranscriber,
+  UnavailableTranscriber,
+  type AssistantBackend,
+  type Transcriber,
+} from '@wise/assistant';
+import type { AuthContext } from '@wise/auth';
 import {
   InfobipAssistantBackend,
   InfobipClient,
@@ -10,6 +16,7 @@ import {
   type InfobipSenderConfig,
 } from '@wise/infobip-provider';
 import { logger } from '@wise/logger';
+import { ROLES, type RoleName } from '@wise/types';
 import type { CountryCode } from '@wise/validation';
 
 /**
@@ -20,11 +27,21 @@ import type { CountryCode } from '@wise/validation';
  * troque por Redis/Postgres. A rota de webhook de entrega alimenta o
  * CampaignStore com o andamento real (spec §16, §31).
  */
+/** Resolve o telefone do WhatsApp para um usuário autenticado (spec §3, §19). */
+export type WhatsAppUserResolver = (phone: string) => AuthContext | null;
+
 export interface InfobipAssistantModule {
   backend: AssistantBackend;
   lists: ContactListStore;
   campaigns: CampaignStore;
   allocateCampaignId: (organizationId: string) => Promise<string>;
+  /** Cliente Infobip para o canal de entrada (baixar mídia, responder). */
+  client: InfobipClient;
+  senders: InfobipSenderConfig[];
+  /** Transcrição de áudio recebido (spec §3). */
+  transcriber: Transcriber;
+  /** Identidade do remetente do WhatsApp (spec §19). */
+  resolveUser: WhatsAppUserResolver;
 }
 
 export interface InfobipAssistantEnv {
@@ -33,6 +50,10 @@ export interface InfobipAssistantEnv {
   INFOBIP_SENDERS?: string; // JSON: [{ "id": "...", "number": "5511...", "label": "..." }]
   INFOBIP_PRICE_PER_MESSAGE?: number;
   INFOBIP_DEFAULT_COUNTRY?: string;
+  INFOBIP_INBOUND_USERS?: string; // JSON: [{phone,userId,organizationId,role,email?}]
+  TRANSCRIBE_URL?: string;
+  TRANSCRIBE_API_KEY?: string;
+  TRANSCRIBE_MODEL?: string;
 }
 
 export function buildInfobipAssistant(env: InfobipAssistantEnv): InfobipAssistantModule | null {
@@ -68,8 +89,76 @@ export function buildInfobipAssistant(env: InfobipAssistantEnv): InfobipAssistan
     return Promise.resolve(formatCampaignId(new Date().getFullYear(), next));
   };
 
+  const transcriber: Transcriber =
+    env.TRANSCRIBE_URL !== undefined
+      ? new HttpTranscriber({
+          url: env.TRANSCRIBE_URL,
+          apiKey: env.TRANSCRIBE_API_KEY,
+          model: env.TRANSCRIBE_MODEL,
+          language: 'pt',
+        })
+      : new UnavailableTranscriber();
+
+  const resolveUser = buildUserResolver(env.INFOBIP_INBOUND_USERS);
+
   logger.info({ senders: senders.length }, 'Assistente Infobip habilitado.');
-  return { backend, lists, campaigns, allocateCampaignId };
+  return { backend, lists, campaigns, allocateCampaignId, client, senders, transcriber, resolveUser };
+}
+
+interface InboundUserConfig {
+  phone: string;
+  userId: string;
+  organizationId: string;
+  role: RoleName;
+  email?: string;
+}
+
+/**
+ * Constrói o resolvedor de identidade do canal a partir de uma allowlist
+ * (spec §19). Sem entrada correspondente, o remetente não é autorizado — o canal
+ * responde educadamente e nada é executado.
+ */
+function buildUserResolver(raw: string | undefined): WhatsAppUserResolver {
+  const users = parseInboundUsers(raw);
+  const byPhone = new Map<string, InboundUserConfig>();
+  for (const u of users) byPhone.set(normalizePhoneKey(u.phone), u);
+
+  return (phone: string): AuthContext | null => {
+    const u = byPhone.get(normalizePhoneKey(phone));
+    if (!u) return null;
+    return {
+      userId: u.userId,
+      email: u.email ?? `${normalizePhoneKey(u.phone)}@whatsapp.local`,
+      isSuperAdmin: false,
+      memberships: { [u.organizationId]: u.role },
+    };
+  };
+}
+
+function parseInboundUsers(raw: string | undefined): InboundUserConfig[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((u): u is InboundUserConfig => {
+      const c = u as Partial<InboundUserConfig>;
+      return (
+        typeof c.phone === 'string' &&
+        typeof c.userId === 'string' &&
+        typeof c.organizationId === 'string' &&
+        typeof c.role === 'string' &&
+        (ROLES as readonly string[]).includes(c.role)
+      );
+    });
+  } catch {
+    logger.warn('INFOBIP_INBOUND_USERS inválido (JSON malformado) — ignorado.');
+    return [];
+  }
+}
+
+/** Compara telefones só pelos dígitos (tolera +, espaços, etc.). */
+function normalizePhoneKey(phone: string): string {
+  return phone.replace(/\D/g, '');
 }
 
 function parseSenders(raw: string | undefined): InfobipSenderConfig[] {

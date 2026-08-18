@@ -84,7 +84,13 @@ Business Platform**, usando **exclusivamente** APIs e fluxos **oficiais da Meta*
   dedupe, envio idempotente por `messageId`, acompanhamento por relatórios de
   entrega). A API escolhe Meta ou Infobip por configuração (`INFOBIP_*`); o
   Infobip **expõe saldo** (§11 funciona). Rotas de ingestão de lista e webhook
-  de entrega. **9 testes.**
+  de entrega. **14 testes.**
+- ✅ **Canal de entrada WhatsApp (Infobip):** webhook
+  `/api/webhooks/infobip/whatsapp/inbound` que identifica o usuário pelo telefone
+  (§19), transcreve áudio (`HttpTranscriber` compatível com
+  `/audio/transcriptions`; falha explícita se não configurado — §24), aceita CSV
+  como lista (§6) e **responde pelo WhatsApp**, com dedupe por messageId (§23) e
+  sessão compartilhada com a rota REST.
 - ✅ **Observabilidade + resiliência (Fase 9 + §28):** `CircuitBreaker` por número
   (CLOSED→OPEN→HALF_OPEN, estado em Redis) integrado ao envio; `ReportsService`
   (funil + taxas, §32), `AccountHealthService` (§29) e `AlertsService` (§36) com

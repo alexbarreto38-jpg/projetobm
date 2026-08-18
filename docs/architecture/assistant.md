@@ -152,12 +152,42 @@ MVP traz `InMemorySessionStore` (uma instância). Em produção com múltiplas
 réplicas, implemente o store sobre Redis/Postgres para sobreviver a reinícios e
 ser compartilhado entre instâncias.
 
-## Canal WhatsApp e áudio (spec §3)
+## Canal WhatsApp e áudio (spec §3, §29)
 
-A rota recebe **texto**. O canal WhatsApp deve, antes de chamar a rota: baixar a
-mídia, transcrever o áudio (interface `Transcriber` em `@wise/assistant`) e
-enviar o texto resultante. `UnavailableTranscriber` falha de forma explícita
-quando não há STT configurado (nunca "inventa" transcrição).
+O canal de entrada do WhatsApp via Infobip está implementado:
+`POST /api/webhooks/infobip/whatsapp/inbound` recebe as mensagens (MO) e, para
+cada uma:
+
+1. **Identifica o usuário** pelo telefone (`INFOBIP_INBOUND_USERS` → usuário/
+   organização/papel). Sem correspondência, responde "não autorizado" e nada é
+   executado (spec §19).
+2. **Texto** → segue direto; **áudio** → baixa a mídia e transcreve
+   (`Transcriber`); **arquivo CSV** → faz o parse, registra a lista no
+   `ContactListStore` e informa a referência ao assistente para o
+   `attach_contact_list` (spec §6); outros tipos → responde o que aceita.
+3. Chama o assistente (mesma sessão da rota REST — store compartilhado) e
+   **responde de volta pelo WhatsApp** (`sendTextMessage`) a partir do número de
+   negócio que recebeu.
+4. **Dedupe** por `messageId` (spec §23). Processamento síncrono no MVP; em
+   produção, enfileire e responda 200 imediatamente.
+
+Transcrição: `HttpTranscriber` (compatível com `/audio/transcriptions`, ex.:
+Whisper self-hosted) quando `TRANSCRIBE_URL` está configurado; caso contrário
+`UnavailableTranscriber` falha de forma explícita e o canal pede texto — nunca
+"inventa" a transcrição (spec §24).
+
+Configuração do canal:
+
+```
+INFOBIP_INBOUND_USERS=[{"phone":"+5511977776666","userId":"u1","organizationId":"org1","role":"OPERATOR"}]
+TRANSCRIBE_URL=https://seu-stt/v1/audio/transcriptions   # opcional
+TRANSCRIBE_API_KEY=...                                    # opcional
+INFOBIP_WEBHOOK_TOKEN=...   # protege inbound e delivery (header x-infobip-token)
+```
+
+Aponte o webhook de mensagens recebidas do Infobip para
+`/api/webhooks/infobip/whatsapp/inbound` e o de relatórios de entrega para
+`/api/webhooks/infobip/delivery`.
 
 ## Configuração
 

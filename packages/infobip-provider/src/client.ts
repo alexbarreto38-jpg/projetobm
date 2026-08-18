@@ -49,6 +49,35 @@ export class InfobipClient {
     return this.request<InfobipSendResponse>('POST', '/whatsapp/1/message/template', { messages });
   }
 
+  /**
+   * Envia uma mensagem de texto de sessão (spec §3, §16). Usado pelo canal de
+   * entrada para responder ao usuário no WhatsApp dentro da janela de 24h.
+   */
+  async sendTextMessage(params: { from: string; to: string; text: string }): Promise<InfobipSendResponse> {
+    return this.request<InfobipSendResponse>('POST', '/whatsapp/1/message/text', {
+      from: params.from,
+      to: params.to,
+      content: { text: params.text },
+    });
+  }
+
+  /**
+   * Baixa uma mídia recebida (áudio/arquivo) usando a mesma autenticação da API
+   * (spec §3). Retorna os bytes e o content-type para transcrição/processamento.
+   */
+  async downloadMedia(url: string): Promise<{ data: Uint8Array; contentType: string }> {
+    const res = await this.fetchImpl(url, {
+      method: 'GET',
+      headers: { authorization: `App ${this.apiKey}` },
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      throw new InfobipApiError(res.status, undefined, detail.slice(0, 200));
+    }
+    const buffer = new Uint8Array(await res.arrayBuffer());
+    return { data: buffer, contentType: res.headers.get('content-type') ?? 'application/octet-stream' };
+  }
+
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const res = await this.fetchImpl(`${this.baseUrl}${path}`, {
       method,

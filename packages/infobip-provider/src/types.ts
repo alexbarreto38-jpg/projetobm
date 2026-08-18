@@ -71,3 +71,26 @@ export interface InfobipDeliveryReport {
   status: InfobipSendStatus;
   error?: { id?: number; name?: string; description?: string; groupName?: string };
 }
+
+/**
+ * Mensagem recebida (MO) via webhook do WhatsApp (spec §3). O `message.type`
+ * varia (TEXT, AUDIO, VOICE, DOCUMENT, IMAGE, ...); mídias trazem `url`.
+ */
+export interface InfobipInboundMessage {
+  type: string;
+  text?: string;
+  url?: string;
+  caption?: string;
+}
+export interface InfobipInboundResult {
+  from: string; // telefone do usuário
+  to: string; // número de negócio que recebeu
+  messageId: string;
+  receivedAt?: string;
+  message: InfobipInboundMessage;
+  contact?: { name?: string };
+}
+export interface InfobipInboundWebhook {
+  results?: InfobipInboundResult[];
+  messageCount?: number;
+}

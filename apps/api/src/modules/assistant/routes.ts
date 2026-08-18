@@ -4,7 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { AppConfig } from '../../app.js';
 import { badRequest } from '../../lib/errors.js';
-import { AssistantService } from './service.js';
+import { getAssistantService } from './factory.js';
 
 interface OrgParams {
   id: string;
@@ -27,13 +27,8 @@ const listSchema = z.object({
  * Meta por padrão, ou Infobip quando `config.infobipAssistant` está presente.
  */
 export async function registerAssistantRoutes(app: FastifyInstance, config: AppConfig) {
-  if (!config.assistantLlm) return;
-  const service = new AssistantService({
-    prisma: config.prisma,
-    llm: config.assistantLlm,
-    backend: config.infobipAssistant?.backend,
-    allocateCampaignId: config.infobipAssistant?.allocateCampaignId,
-  });
+  const service = getAssistantService(config);
+  if (!service) return;
 
   app.post<{ Params: OrgParams }>('/organizations/:id/assistant/messages', async (request, reply) => {
     const ctx = app.requireAuth(request);

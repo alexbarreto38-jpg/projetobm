@@ -24,6 +24,7 @@ import {
   registerAssistantRoutes,
   registerAssistantWebhookRoutes,
 } from './modules/assistant/routes.js';
+import { registerInfobipInboundRoutes } from './modules/assistant/whatsapp-inbound.js';
 import { registerAuditRoutes } from './modules/audit/routes.js';
 import { registerCampaignRoutes } from './modules/campaigns/routes.js';
 import { registerContactRoutes } from './modules/contacts/routes.js';
@@ -234,6 +235,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       await registerAuditRoutes(instance, config);
       await registerAssistantRoutes(instance, config);
       await registerAssistantWebhookRoutes(instance, config);
+      registerInfobipInboundRoutes(instance, config);
       if (config.meta) {
         await registerMetaRoutes(instance, config, config.meta);
       }
