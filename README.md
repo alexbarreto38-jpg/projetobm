@@ -78,6 +78,13 @@ Business Platform**, usando **exclusivamente** APIs e fluxos **oficiais da Meta*
   que a Meta não expõe (saldo/custo/recarga) são reportadas honestamente como
   não suportadas (spec §11, §24). Detalhes em
   [`docs/architecture/assistant.md`](docs/architecture/assistant.md). **29 testes.**
+- ✅ **Provider Infobip do assistente (`@wise/infobip-provider`):** o MESMO
+  cérebro rodando sobre o Infobip — cliente tipado (saldo, templates, envio de
+  template em lote), `InfobipAssistantBackend` (validação de lista E.164 +
+  dedupe, envio idempotente por `messageId`, acompanhamento por relatórios de
+  entrega). A API escolhe Meta ou Infobip por configuração (`INFOBIP_*`); o
+  Infobip **expõe saldo** (§11 funciona). Rotas de ingestão de lista e webhook
+  de entrega. **9 testes.**
 - ✅ **Observabilidade + resiliência (Fase 9 + §28):** `CircuitBreaker` por número
   (CLOSED→OPEN→HALF_OPEN, estado em Redis) integrado ao envio; `ReportsService`
   (funil + taxas, §32), `AccountHealthService` (§29) e `AlertsService` (§36) com
@@ -98,7 +105,7 @@ Prisma · Redis · BullMQ · Auth.js.
 
 ```
 apps/     web (Next.js) · api (Node) · worker (BullMQ)   ← Fases seguintes
-packages/ database · meta-provider · assistant · config · types · logger
+packages/ database · meta-provider · infobip-provider · assistant · config · types · logger
 docs/     architecture/ · meta/ (verificada contra a Meta)
 ```
 

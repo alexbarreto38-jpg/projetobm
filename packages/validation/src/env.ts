@@ -83,6 +83,14 @@ export const apiEnvSchema = z
     ANTHROPIC_API_KEY: z.string().min(1).optional(),
     ANTHROPIC_MODEL: z.string().min(1).optional(),
     ANTHROPIC_BASE_URL: z.string().url().optional(),
+    // Provider Infobip do assistente (spec §1). Quando INFOBIP_BASE_URL +
+    // INFOBIP_API_KEY estão presentes, o assistente roda sobre o Infobip.
+    INFOBIP_BASE_URL: z.string().url().optional(),
+    INFOBIP_API_KEY: z.string().min(1).optional(),
+    INFOBIP_SENDERS: z.string().min(1).optional(), // JSON: [{id,number,label}]
+    INFOBIP_PRICE_PER_MESSAGE: z.coerce.number().positive().optional(),
+    INFOBIP_DEFAULT_COUNTRY: z.string().min(2).max(2).optional(),
+    INFOBIP_WEBHOOK_TOKEN: z.string().min(1).optional(),
   })
   .superRefine(refineMeta);
 

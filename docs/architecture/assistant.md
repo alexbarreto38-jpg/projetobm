@@ -83,6 +83,44 @@ Sensível (irreversível/financeiro): `approve_campaign`, `start_campaign`,
 Os schemas Zod das ferramentas viram JSON Schema para o LLM (`jsonschema.ts`) —
 uma única fonte de verdade valida em runtime e descreve a ferramenta ao modelo.
 
+## Provider Infobip (spec §1)
+
+O mesmo cérebro roda sobre o **Infobip** sem qualquer mudança: `@wise/infobip-provider`
+implementa a mesma interface `AssistantBackend`. Trocar Meta ↔ Infobip é só
+fiação.
+
+- **Cliente tipado** (`InfobipClient`, via `fetch`, auth `Authorization: App <key>`):
+  saldo (`/account/1/balance`), templates (`/whatsapp/2/senders/{sender}/templates`),
+  envio de template em lote (`/whatsapp/1/message/template`).
+- **`InfobipAssistantBackend`**: senders configurados, agregação de templates com
+  aprovação por sender, **validação da lista** (normalização E.164 + dedupe via
+  `@wise/validation`), envio em lotes com `messageId` idempotente (§54) e
+  acompanhamento por **relatórios de entrega**.
+- **Stores** (`ContactListStore`, `CampaignStore`) — in-memory no MVP, trocáveis
+  por Redis/Postgres. `ingestDeliveryReports` alimenta o andamento pelo webhook.
+
+Diferente da Meta, o Infobip **expõe saldo** — então `get_account_balance`
+funciona de verdade (§11). Custo por mensagem é opcional (`INFOBIP_PRICE_PER_MESSAGE`);
+sem ele, a estimativa fica `supported:false`. Recarga por API não existe no
+Infobip → `supported:false` (§12).
+
+Habilitação (API escolhe o provider automaticamente quando as variáveis existem):
+
+```
+INFOBIP_BASE_URL=https://xxxxx.api.infobip.com
+INFOBIP_API_KEY=...
+INFOBIP_SENDERS=[{"id":"empresa-x","number":"5511999994587","label":"Empresa X"}]
+INFOBIP_PRICE_PER_MESSAGE=0.05   # opcional
+INFOBIP_WEBHOOK_TOKEN=...        # protege o webhook de entrega
+```
+
+Rotas extras do provider Infobip:
+
+- `POST /organizations/:id/assistant/lists` — ingere uma lista já parseada
+  (`{ ref, columns, rows }`) no `ContactListStore` para o `attach_contact_list`.
+- `POST /api/webhooks/infobip/delivery` — recebe os relatórios de entrega do
+  Infobip (`{ results: [...] }`) e atualiza o andamento das campanhas (§16, §31).
+
 ## O que a infraestrutura Meta **não** expõe (honestidade — spec §11, §24)
 
 Este backend usa as APIs **oficiais da Meta**, que não oferecem alguns recursos

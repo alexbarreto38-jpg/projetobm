@@ -19,7 +19,11 @@ import type { MetaContext } from './meta/context.js';
 import { createMetrics, type QueueCounts } from './metrics.js';
 import { registerAuthRoutes } from './modules/auth/routes.js';
 import { registerMetaRoutes } from './modules/meta/routes.js';
-import { registerAssistantRoutes } from './modules/assistant/routes.js';
+import type { InfobipAssistantModule } from './modules/assistant/infobip.js';
+import {
+  registerAssistantRoutes,
+  registerAssistantWebhookRoutes,
+} from './modules/assistant/routes.js';
 import { registerAuditRoutes } from './modules/audit/routes.js';
 import { registerCampaignRoutes } from './modules/campaigns/routes.js';
 import { registerContactRoutes } from './modules/contacts/routes.js';
@@ -66,6 +70,14 @@ export interface AppConfig {
    * as rotas /assistant não são registradas — a API sobe sem o assistente.
    */
   assistantLlm?: LlmClient;
+  /**
+   * Módulo Infobip do assistente (spec §1). Quando presente, o assistente usa o
+   * Infobip como backend das ferramentas em vez da Meta; habilita a ingestão de
+   * listas e o webhook de relatórios de entrega.
+   */
+  infobipAssistant?: InfobipAssistantModule;
+  /** Token opcional para autenticar o webhook de entrega do Infobip. */
+  infobipWebhookToken?: string;
   /**
    * Ping do Redis para a readiness (/ready). Quando ausente (ex.: sem Redis
    * nesta instância), a checagem de Redis é reportada como "skipped".
@@ -221,6 +233,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       await registerLgpdRoutes(instance, config);
       await registerAuditRoutes(instance, config);
       await registerAssistantRoutes(instance, config);
+      await registerAssistantWebhookRoutes(instance, config);
       if (config.meta) {
         await registerMetaRoutes(instance, config, config.meta);
       }

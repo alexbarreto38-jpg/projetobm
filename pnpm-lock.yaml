@@ -50,6 +50,9 @@ importers:
       '@wise/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@wise/infobip-provider':
+        specifier: workspace:*
+        version: link:../../packages/infobip-provider
       '@wise/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -247,6 +250,22 @@ importers:
       tsx:
         specifier: ^4.16.0
         version: 4.23.11
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@20.19.43)
+
+  packages/infobip-provider:
+    dependencies:
+      '@wise/assistant':
+        specifier: workspace:*
+        version: link:../assistant
+      '@wise/validation':
+        specifier: workspace:*
+        version: link:../validation
+    devDependencies:
       typescript:
         specifier: ^5.5.0
         version: 5.9.3

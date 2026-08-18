@@ -21,6 +21,7 @@
     "@wise/assistant": "workspace:*",
     "@wise/auth": "workspace:*",
     "@wise/database": "workspace:*",
+    "@wise/infobip-provider": "workspace:*",
     "@wise/logger": "workspace:*",
     "@wise/meta-provider": "workspace:*",
     "@wise/queue": "workspace:*",

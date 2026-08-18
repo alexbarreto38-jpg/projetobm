@@ -1,5 +1,6 @@
 import { AnthropicClient, type LlmClient } from '@wise/assistant';
 import { prisma } from '@wise/database';
+import { buildInfobipAssistant } from './modules/assistant/infobip.js';
 import { captureException, initSentry, logger } from '@wise/logger';
 import { apiEnvSchema, parseEnv } from '@wise/validation';
 import { buildApp } from './app.js';
@@ -93,6 +94,10 @@ async function main() {
     logger.warn('ANTHROPIC_API_KEY ausente — rotas /assistant desabilitadas nesta instância.');
   }
 
+  // Provider Infobip do assistente (spec §1). Quando configurado, substitui o
+  // backend Meta das ferramentas do assistente.
+  const infobipAssistant = buildInfobipAssistant(env) ?? undefined;
+
   const app = await buildApp({
     prisma,
     authSecret,
@@ -106,6 +111,8 @@ async function main() {
     queueMetrics,
     checkRedis,
     assistantLlm,
+    infobipAssistant,
+    infobipWebhookToken: env.INFOBIP_WEBHOOK_TOKEN,
   });
 
   const port = env.API_PORT ?? 3001;

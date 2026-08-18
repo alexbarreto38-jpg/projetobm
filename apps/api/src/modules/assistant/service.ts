@@ -1,6 +1,7 @@
 import {
   formatCampaignId,
   runAssistantTurn,
+  type AssistantBackend,
   type LlmClient,
   type SafetyPolicy,
 } from '@wise/assistant';
@@ -18,6 +19,14 @@ export interface AssistantServiceDeps {
   llm: LlmClient;
   store?: AssistantSessionStore;
   policy?: SafetyPolicy;
+  /**
+   * Backend das ferramentas (spec §26). Padrão: Meta (PrismaAssistantBackend).
+   * Passe o InfobipAssistantBackend para rodar o assistente sobre o Infobip —
+   * o cérebro não muda, só a fiação (spec §1).
+   */
+  backend?: AssistantBackend;
+  /** Alocador do id humano de campanha; padrão conta as campanhas no Postgres. */
+  allocateCampaignId?: (organizationId: string) => Promise<string>;
 }
 
 export interface AssistantReply {
@@ -33,11 +42,11 @@ export interface AssistantReply {
  * (spec §3).
  */
 export class AssistantService {
-  private readonly backend: PrismaAssistantBackend;
+  private readonly backend: AssistantBackend;
   private readonly store: AssistantSessionStore;
 
   constructor(private readonly deps: AssistantServiceDeps) {
-    this.backend = new PrismaAssistantBackend(deps.prisma);
+    this.backend = deps.backend ?? new PrismaAssistantBackend(deps.prisma);
     this.store = deps.store ?? new InMemorySessionStore();
   }
 
@@ -76,6 +85,7 @@ export class AssistantService {
 
   /** Sequência humana de campanha por organização (spec §23). */
   private async allocateCampaignId(organizationId: string): Promise<string> {
+    if (this.deps.allocateCampaignId) return this.deps.allocateCampaignId(organizationId);
     const count = await this.deps.prisma.campaign.count({ where: { organizationId } });
     return formatCampaignId(new Date().getFullYear(), count + 1);
   }
