@@ -1,6 +1,7 @@
 import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
+import type { LlmClient } from '@wise/assistant';
 import {
   AuthorizationError,
   SESSION_COOKIE,
@@ -18,6 +19,7 @@ import type { MetaContext } from './meta/context.js';
 import { createMetrics, type QueueCounts } from './metrics.js';
 import { registerAuthRoutes } from './modules/auth/routes.js';
 import { registerMetaRoutes } from './modules/meta/routes.js';
+import { registerAssistantRoutes } from './modules/assistant/routes.js';
 import { registerAuditRoutes } from './modules/audit/routes.js';
 import { registerCampaignRoutes } from './modules/campaigns/routes.js';
 import { registerContactRoutes } from './modules/contacts/routes.js';
@@ -59,6 +61,11 @@ export interface AppConfig {
   messageSendEnqueuer?: MessageSendEnqueuer;
   /** Provedor de contagens de fila (BullMQ) para o /metrics. */
   queueMetrics?: QueueCounts;
+  /**
+   * Cliente de LLM do assistente conversacional (spec §1, §25). Quando ausente,
+   * as rotas /assistant não são registradas — a API sobe sem o assistente.
+   */
+  assistantLlm?: LlmClient;
   /**
    * Ping do Redis para a readiness (/ready). Quando ausente (ex.: sem Redis
    * nesta instância), a checagem de Redis é reportada como "skipped".
@@ -213,6 +220,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       await registerDeadLetterRoutes(instance, config);
       await registerLgpdRoutes(instance, config);
       await registerAuditRoutes(instance, config);
+      await registerAssistantRoutes(instance, config);
       if (config.meta) {
         await registerMetaRoutes(instance, config, config.meta);
       }

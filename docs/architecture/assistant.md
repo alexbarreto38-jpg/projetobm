@@ -1,0 +1,130 @@
+# Módulo 1 — Assistente conversacional (WhatsApp)
+
+Assistente operacional de IA que recebe comandos em linguagem natural (texto e
+áudio transcrito) e os transforma em ações reais de envio, com preparação,
+prévia obrigatória, confirmação explícita, execução e relatório — sempre por
+meio das ferramentas do backend, nunca em execução livre pelo modelo.
+
+> A IA pode **preparar** quase tudo, mas operações **irreversíveis ou
+> financeiramente sensíveis** (disparo, recarga) passam pelas regras do backend
+> e por **confirmação explícita**. A experiência é simples para o usuário; a
+> infraestrutura por trás é rigorosa em segurança, permissões, logs e validação.
+
+## Arquitetura (spec §2, §25)
+
+```
+Usuário → WhatsApp → (transcrição de áudio) → texto
+      → AssistantService (apps/api)
+          → runAssistantTurn  (@wise/assistant — o "cérebro")
+              → LLM (Anthropic) ⇄ laço de tool-use
+              → dispatchTool → guardrails (permissão, limites, confirmação)
+                  → AssistantBackend (PrismaAssistantBackend)
+                      → serviços reais (CampaignService, Prisma, Meta)
+      → resposta em texto ao usuário
+```
+
+A separação é intencional:
+
+- **`@wise/assistant`** é o cérebro conversacional. Não conhece Prisma, Fastify
+  nem o provedor de LLM — depende só de interfaces (`AssistantBackend`,
+  `LlmClient`). É totalmente testável sem banco nem rede (29 testes unitários).
+- **`apps/api/src/modules/assistant`** é a fiação: implementa `AssistantBackend`
+  contra os serviços reais, constrói o `LlmClient` (Anthropic) e expõe as rotas.
+
+## Máquina de estados da campanha (spec §14)
+
+```
+DRAFT → PREPARED → AWAITING_APPROVAL → APPROVED → EXECUTING → COMPLETED
+  (rascunho) (preparado) (aguardando aprovação) (aprovado) (executando) (finalizado)
+```
+
+Travas centrais:
+
+- Só se sai de `AWAITING_APPROVAL` para `APPROVED` por **confirmação explícita**
+  de um usuário com permissão `campaign:execute`.
+- A aprovação fica **atrelada ao hash da configuração** aprovada. Se qualquer
+  slot relevante (remetente, template, lista, público, mapeamento, horário)
+  mudar depois, a aprovação é descartada e a sessão **volta a `DRAFT`** — impede
+  que um "pode enviar" antigo autorize um envio diferente do revisado.
+- Em `EXECUTING`/`COMPLETED` a configuração é imutável.
+
+## Guardrails
+
+| Regra | Onde | Spec |
+|---|---|---|
+| Permissão exigida por ferramenta (não contornável por insistência) | `dispatcher.ts` | §19 |
+| Prévia obrigatória antes do disparo | `generate_campaign_preview` | §13 |
+| Confirmação explícita separada da execução | `approve_campaign` → `start_campaign` | §14 |
+| Segunda aprovação acima do limite de mensagens | `policy.ts` + `approve_campaign` | §20 |
+| Bloqueio acima do teto absoluto de mensagens/custo | `policy.ts` | §20 |
+| Idempotência por id humano de campanha (`CAMP-AAAA-NNNNNN`) | `ids.ts`, `CampaignService` | §19, §23 |
+| Nunca "inventar" resultado — todo resultado tem `outcome` | `result.ts` | §24 |
+| Erros técnicos traduzidos, nunca escondidos | `dispatcher.ts` | §22 |
+
+O campo `outcome` (`planned` / `requested` / `processing` / `confirmed` /
+`failed`) é o coração do §24: o prompt do sistema instrui o modelo a só dizer
+que algo "foi enviado" quando o backend confirmou. `start_campaign` retorna
+`processing` (enfileirado), **nunca** "enviado com sucesso".
+
+## Ferramentas (spec §26)
+
+Consulta: `get_account_balance`, `list_senders`, `get_sender`, `list_templates`,
+`get_template`, `estimate_campaign_cost`, `get_campaign_status`,
+`get_campaign_report`.
+
+Preparação (reversível): `create_campaign_draft`, `select_sender`,
+`select_template`, `attach_contact_list`, `map_template_variables`,
+`set_schedule`, `generate_campaign_preview`, `request_campaign_approval`,
+`request_account_recharge`.
+
+Sensível (irreversível/financeiro): `approve_campaign`, `start_campaign`,
+`pause_campaign`, `cancel_campaign`, `execute_authorized_recharge`.
+
+Os schemas Zod das ferramentas viram JSON Schema para o LLM (`jsonschema.ts`) —
+uma única fonte de verdade valida em runtime e descreve a ferramenta ao modelo.
+
+## O que a infraestrutura Meta **não** expõe (honestidade — spec §11, §24)
+
+Este backend usa as APIs **oficiais da Meta**, que não oferecem alguns recursos
+que o produto prevê de forma genérica. Em vez de inventar valores, as
+capacidades correspondentes retornam `supported:false`:
+
+- **Saldo pré-pago** (`get_account_balance`) — não exposto pela Graph API.
+- **Custo unitário simples** (`estimate_campaign_cost`) — o preço da Meta é por
+  conversa e varia por país/categoria. Evolução: tabela de preços por mercado.
+- **Recarga por API** (`request/execute_recharge`) — sem API de billing; o
+  assistente orienta a recarga pelo painel/financeiro.
+
+Quando essas capacidades existirem (outro provedor ou integração de billing),
+basta implementar os métodos do `AssistantBackend` — o cérebro não muda.
+
+## Endpoints
+
+Só registrados quando `ANTHROPIC_API_KEY` está configurado.
+
+- `POST /organizations/:id/assistant/messages` — corpo `{ "text": "..." }`
+  (texto do usuário, já transcrito se veio de áudio). Retorna
+  `{ reply, campaignId, state }`.
+- `POST /organizations/:id/assistant/reset` — limpa a conversa do usuário.
+
+## Persistência da conversa
+
+O estado da conversa (rascunho + histórico) usa um `AssistantSessionStore`. O
+MVP traz `InMemorySessionStore` (uma instância). Em produção com múltiplas
+réplicas, implemente o store sobre Redis/Postgres para sobreviver a reinícios e
+ser compartilhado entre instâncias.
+
+## Canal WhatsApp e áudio (spec §3)
+
+A rota recebe **texto**. O canal WhatsApp deve, antes de chamar a rota: baixar a
+mídia, transcrever o áudio (interface `Transcriber` em `@wise/assistant`) e
+enviar o texto resultante. `UnavailableTranscriber` falha de forma explícita
+quando não há STT configurado (nunca "inventa" transcrição).
+
+## Configuração
+
+```
+ANTHROPIC_API_KEY=...          # habilita o assistente
+ANTHROPIC_MODEL=claude-sonnet-5 # opcional
+ANTHROPIC_BASE_URL=...          # opcional
+```

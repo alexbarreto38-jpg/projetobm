@@ -78,6 +78,11 @@ export const apiEnvSchema = z
     API_PORT: z.coerce.number().int().positive().optional(),
     API_HOST: z.string().min(1).optional(),
     COOKIE_SECURE: boolish,
+    // Assistente conversacional (spec §1, §25). Opcional: sem a chave, as rotas
+    // /assistant não são registradas.
+    ANTHROPIC_API_KEY: z.string().min(1).optional(),
+    ANTHROPIC_MODEL: z.string().min(1).optional(),
+    ANTHROPIC_BASE_URL: z.string().url().optional(),
   })
   .superRefine(refineMeta);
 

@@ -18,6 +18,7 @@
     "@fastify/cookie": "^9.3.1",
     "@fastify/helmet": "^11.1.1",
     "@fastify/rate-limit": "^9.1.0",
+    "@wise/assistant": "workspace:*",
     "@wise/auth": "workspace:*",
     "@wise/database": "workspace:*",
     "@wise/logger": "workspace:*",

@@ -66,6 +66,18 @@ Business Platform**, usando **exclusivamente** APIs e fluxos **oficiais da Meta*
   🟢/🟡/🔴 → iniciar/pausar/cancelar), criar/importar contatos (CSV) e opt-out,
   além de Relatórios, Alertas (reconhecer/resolver) e Configurações
 
+- ✅ **Assistente conversacional (Módulo 1):** `@wise/assistant` — o "cérebro"
+  que interpreta pedidos em linguagem natural e os transforma em ações reais via
+  ferramentas do backend, com máquina de estados de campanha (rascunho →
+  preparado → aguardando aprovação → aprovado → executando → finalizado),
+  **prévia obrigatória**, **confirmação explícita** atrelada ao hash da
+  configuração, limites de segurança (2ª aprovação/bloqueio), permissões por
+  ferramenta e a regra "nunca inventar resultado" (`outcome`). Rotas
+  `/organizations/:id/assistant/messages` (habilitadas por `ANTHROPIC_API_KEY`);
+  adaptador `PrismaAssistantBackend` liga ao `CampaignService`/Meta. Capacidades
+  que a Meta não expõe (saldo/custo/recarga) são reportadas honestamente como
+  não suportadas (spec §11, §24). Detalhes em
+  [`docs/architecture/assistant.md`](docs/architecture/assistant.md). **29 testes.**
 - ✅ **Observabilidade + resiliência (Fase 9 + §28):** `CircuitBreaker` por número
   (CLOSED→OPEN→HALF_OPEN, estado em Redis) integrado ao envio; `ReportsService`
   (funil + taxas, §32), `AccountHealthService` (§29) e `AlertsService` (§36) com
@@ -86,7 +98,7 @@ Prisma · Redis · BullMQ · Auth.js.
 
 ```
 apps/     web (Next.js) · api (Node) · worker (BullMQ)   ← Fases seguintes
-packages/ database · meta-provider · config · types · logger  ← neste commit
+packages/ database · meta-provider · assistant · config · types · logger
 docs/     architecture/ · meta/ (verificada contra a Meta)
 ```
 
