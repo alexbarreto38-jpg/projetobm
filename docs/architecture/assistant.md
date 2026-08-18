@@ -121,6 +121,27 @@ Rotas extras do provider Infobip:
 - `POST /api/webhooks/infobip/delivery` — recebe os relatórios de entrega do
   Infobip (`{ results: [...] }`) e atualiza o andamento das campanhas (§16, §31).
 
+## Painel web (conversar com o assistente)
+
+O painel (`apps/web`) tem a página **Assistente** (`/assistant`): um chat que fala
+com o backend pelo BFF (`POST /api/organizations/:id/assistant/messages`) — o
+token de sessão nunca vai ao navegador (spec §8, §46). Mostra o estado da
+campanha (rascunho → … → executando) e o id, tem sugestões iniciais e um botão
+de reiniciar (`/assistant/reset`). **Usa a mesma sessão do canal WhatsApp** — a
+operação continua entre os dois canais (spec §5). A página só é útil quando o
+assistente está habilitado (`ANTHROPIC_API_KEY`); sem ele, responde que não está
+configurado.
+
+## Processamento assíncrono do webhook de entrada (spec §3, §23, §27)
+
+O webhook de entrada **responde 200 imediatamente** e enfileira o processamento
+(transcrição + LLM + resposta) numa `InboundQueue`, drenada em segundo plano por
+um laço sequencial. Isso evita timeout e reentrega pelo Infobip. A implementação
+padrão é `InProcessInboundQueue` (instância única, com backpressure/descarte
+acima do `maxDepth`). Para múltiplas réplicas, troque por uma fila Redis/BullMQ +
+stores em Redis — a interface `InboundQueue` permite a substituição sem tocar no
+webhook. Dedupe por `messageId` continua no webhook (spec §23).
+
 ## O que a infraestrutura Meta **não** expõe (honestidade — spec §11, §24)
 
 Este backend usa as APIs **oficiais da Meta**, que não oferecem alguns recursos

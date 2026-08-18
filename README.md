@@ -90,7 +90,11 @@ Business Platform**, usando **exclusivamente** APIs e fluxos **oficiais da Meta*
   (§19), transcreve áudio (`HttpTranscriber` compatível com
   `/audio/transcriptions`; falha explícita se não configurado — §24), aceita CSV
   como lista (§6) e **responde pelo WhatsApp**, com dedupe por messageId (§23) e
-  sessão compartilhada com a rota REST.
+  sessão compartilhada com a rota REST. **Processamento assíncrono**: o webhook
+  responde 200 na hora e drena a `InboundQueue` em segundo plano (§27).
+- ✅ **Painel de chat do assistente:** página `/assistant` no `apps/web` — conversa
+  em linguagem natural via BFF (token só no servidor), mostra estado/id da
+  campanha, sugestões e reiniciar; mesma sessão do canal WhatsApp.
 - ✅ **Observabilidade + resiliência (Fase 9 + §28):** `CircuitBreaker` por número
   (CLOSED→OPEN→HALF_OPEN, estado em Redis) integrado ao envio; `ReportsService`
   (funil + taxas, §32), `AccountHealthService` (§29) e `AlertsService` (§36) com

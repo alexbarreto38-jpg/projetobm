@@ -25,6 +25,7 @@ export const ptBR = {
   },
   nav: {
     dashboard: 'Dashboard',
+    assistant: 'Assistente',
     organizations: 'Empresas',
     meta: 'Meta',
     templates: 'Templates',

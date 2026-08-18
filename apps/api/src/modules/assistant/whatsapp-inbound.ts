@@ -4,6 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import type { AppConfig } from '../../app.js';
 import { getAssistantService } from './factory.js';
 import type { InfobipAssistantModule } from './infobip.js';
+import { InProcessInboundQueue } from './inbound-queue.js';
 
 /**
  * Canal de entrada do WhatsApp via Infobip (spec §3, §29). Recebe mensagens do
@@ -24,24 +25,31 @@ export function registerInfobipInboundRoutes(app: FastifyInstance, config: AppCo
   const processed = new Set<string>();
   const token = config.infobipWebhookToken;
 
+  // Processamento assíncrono: o webhook responde 200 na hora e a fila drena em
+  // segundo plano (transcrição + LLM + resposta). Evita timeout/reentrega (§23).
+  const queue = new InProcessInboundQueue(async (inbound) => {
+    try {
+      await handleInbound(module, service, inbound);
+    } catch (error) {
+      logger.error({ err: error, from: inbound.from }, 'Falha ao processar mensagem de entrada.');
+      await safeReply(module, inbound, 'Tive um problema ao processar sua mensagem. Pode tentar de novo?');
+    }
+  });
+
   app.post('/webhooks/infobip/whatsapp/inbound', async (request, reply) => {
     if (token && request.headers['x-infobip-token'] !== token) {
       return reply.status(401).send({ error: { code: 'UNAUTHORIZED' } });
     }
     const messages = normalizeInbound(request.body as Parameters<typeof normalizeInbound>[0]);
-    let handled = 0;
+    let queued = 0;
     for (const inbound of messages) {
       if (processed.has(inbound.messageId)) continue;
       processed.add(inbound.messageId);
-      try {
-        await handleInbound(module, service, inbound);
-        handled++;
-      } catch (error) {
-        logger.error({ err: error, from: inbound.from }, 'Falha ao processar mensagem de entrada.');
-        await safeReply(module, inbound, 'Tive um problema ao processar sua mensagem. Pode tentar de novo?');
-      }
+      queue.enqueue(inbound);
+      queued++;
     }
-    return reply.send({ received: messages.length, handled });
+    // Ack imediato — o processamento continua em segundo plano.
+    return reply.send({ received: messages.length, queued });
   });
 }
 

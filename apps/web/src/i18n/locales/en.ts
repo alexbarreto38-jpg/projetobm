@@ -26,6 +26,7 @@ export const en: Dictionary = {
   },
   nav: {
     dashboard: 'Dashboard',
+    assistant: 'Assistant',
     organizations: 'Companies',
     meta: 'Meta',
     templates: 'Templates',

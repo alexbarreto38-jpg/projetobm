@@ -3,6 +3,7 @@
 import {
   BarChart3,
   Bell,
+  Bot,
   Building2,
   Inbox,
   LayoutDashboard,
@@ -21,6 +22,7 @@ import type { Dictionary } from '@/i18n/config';
 
 const NAV = [
   { href: '/dashboard', key: 'dashboard', icon: LayoutDashboard },
+  { href: '/assistant', key: 'assistant', icon: Bot },
   { href: '/organizations', key: 'organizations', icon: Building2 },
   { href: '/meta/accounts', key: 'meta', icon: Webhook },
   { href: '/templates', key: 'templates', icon: MessageSquareText },
